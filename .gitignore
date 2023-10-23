@@ -4,4 +4,5 @@
 *.egg-info
 /doc/_build
 /doc/.apidocs
-
+*.xml
+*.ppm
