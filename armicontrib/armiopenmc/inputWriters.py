@@ -49,36 +49,6 @@ class OpenMCWriter:
         self.r = reactor
         self.options = options
 
-    '''
-    def writeMaterials(self):
-        """Write the openmc materials input file."""
-
-        core = self.r.core
-        materials = openmc.Materials()
-        self.materialMap = dict()
-
-        for assembly in core:
-            for block in assembly:
-                blockIndicesString = str(block.spatialLocator.getCompleteIndices())
-                self.materialMap[blockIndicesString] = dict()
-                for component in block:
-                    componentMaterial = openmc.Material(name=component.material.name)
-                    componentMaterial.set_density("g/cm3", component.material.getProperty("pseudoDensity", Tc=component.temperatureInC))
-
-                    componentNuclides = component.getNuclides()
-                    componentNuclideDensities = component.getNuclideNumberDensities(componentNuclides)
-                    totalComponentNuclideDensity = sum(componentNuclideDensities)
-
-                    for i, nuclideName in enumerate(componentNuclides):
-                        nuclide = nuclideBases.byName[nuclideName]
-                        if nuclide.a>0:  # ignore lumped fission products and dummy nuclides for now
-                            nuclideGNDSName = openmc.data.gnds_name(Z=nuclide.z, A=nuclide.a)
-                            componentMaterial.add_nuclide(nuclideGNDSName, componentNuclideDensities[i]/totalComponentNuclideDensity, 'ao')
-                    self.materialMap[blockIndicesString][component.name] = componentMaterial
-                    materials.append(componentMaterial)
-        materials.export_to_xml()
-    '''
-
     def writeGeometry(self):
         """Write the openmc geometry input file."""
         
@@ -112,7 +82,7 @@ class OpenMCWriter:
                 return region
 
             # Rectangle
-            if isinstance(component, armi.reactor.components.basicShapes.Hexagon):
+            if isinstance(component, armi.reactor.components.basicShapes.Rectangle):
                 innerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthInner"),
                                                                 height=component.getDimension("lengthInner")) # Check that width/height aren't flipped
                 outerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthOuter"),
@@ -165,7 +135,7 @@ class OpenMCWriter:
 
             return [ring, int(pos)]
             
-        def buildRings(numRings, universe)
+        def buildRings(numRings, universe):
             """Assemble rings for use in openmc.HexLattice"""
             # Note: Need to rings.reverse() before assigning to lattice.universes. Not doing it here keeps indexing easy.
             rings = [None]*numRings
@@ -235,30 +205,30 @@ class OpenMCWriter:
                 block = blendHelixComponentsIntoCoolant(block)
                 
                 # Get DerivedShape component. We need to set its region last
-                derivedShapeComponent = [component for component in block if isinstance(component, armi.reactor.components.DerivedShape)]
+                derivedShapeComponent = [component for component in block if isinstance(component, armi.reactor.components.DerivedShape)][0]
                 derivedShapeComponentMaterial = buildComponentMaterial(derivedShapeComponent)
                 if derivedShapeComponentMaterial is not None:
                     materials.append(derivedShapeComponentMaterial)
                 blockMinusDerivedShape = [component for component in block if not isinstance(component, armi.reactor.components.DerivedShape)]
-                
-                # If any components have mult>1, we need a cell filled with a lattice of them
-                if any([component.getDimension("mult")>1 for component in blockMinusDerivedShape]):
-                    # Divide all components with mult>1 into groups with same mult
-                    multGroups = dict{}
-                    for component in blockMinusDerivedShape:
-                        mult = component.getDimension("mult")
-                        if str(mult) not in multGroups:
-                            multGroups[str(mult)] = []
-                        multGroups[str(mult)].append(component)
 
+                componentCellsInBlock = []
+                # Divide all components into groups with same mult
+                multGroups = dict()
+                for component in blockMinusDerivedShape:
+                    mult = int(component.getDimension("mult"))
+                    if str(mult) not in multGroups:
+                        multGroups[str(mult)] = []
+                    multGroups[str(mult)].append(component)
+
+                # If any components have mult>1, we need a cell filled with a lattice of them
+                if len(multGroups)>1:
                     for mult in multGroups:
-                        mult=int(mult)
                         if int(mult)>1:
                             # Determine number of rings -> solve mult=1+6*(nRings-1)(nRings)/2
                             nRings = math.ceil(.5*(1+(1+4/3*(int(mult)-1))**.5))
                             # NOTE: Currently supporting only 1 multGroup
                             # NOTE: Need better latticePitch
-                            latticePitch = 1.1*max([component.getBoundingCircleOuterDiameter() for component in multGroups[mult])
+                            latticePitch = 1.1*max([component.getBoundingCircleOuterDiameter() for component in multGroups[mult]])
                             componentCellsInMultGroupUniverse = []
                             
                             for component in multGroups[mult]:
@@ -270,10 +240,10 @@ class OpenMCWriter:
                                     materials.append(componentMaterial)
                                 componentCellsInMultGroupUniverse.append(cell)
                             # Fill unused space in lattice with derivedShapeComponentMaterial
-                            derivedShapeComponentCell = openmc.Cell(name=derivedShapeComponent.getName(),
+                            derivedShapeComponentLatticeCell = openmc.Cell(name=derivedShapeComponent.getName(),
                                                                     fill=derivedShapeComponentMaterial,
-                                                                    region=~openmc.Union([cell.region for cell in componentCellsInMultGroupUniverse])
-                            componentCellsInMultGroupUniverse.append(derivedShapeComponentCell)
+                                                                    region=~openmc.Union([cell.region for cell in componentCellsInMultGroupUniverse]))
+                            componentCellsInMultGroupUniverse.append(derivedShapeComponentLatticeCell)
                             multGroupUniverse = openmc.Universe(name="multGroup"+mult, cells=componentCellsInMultGroupUniverse)
                     # Set blockLattice
                     blockLattice = openmc.HexLattice()
@@ -288,33 +258,40 @@ class OpenMCWriter:
                     blockLattice.outer = blockLatticeOuterUniverse
                     # Need cell to fill with lattice
                     # Get smallest mult 1 component - blockLatticeCell will have region inside it
-                    for component in multGroups["1"]:
-                        
-                        
-                                
-                                
-                                
-                                
-                                
-                                
+                    mult1ComponentInnerDiameters = [component.getCircleInnerDiameter() for component in multGroups["1"]]
+                    smallestMult1Component = multGroups["1"][min(range(len(mult1ComponentInnerDiameters)), key=mult1ComponentInnerDiameters.__getitem__)]
+                    if isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Circle):
+                        innerCylinder = openmc.ZCylinder(r=smallestMult1Component.getDimension("id")/2)
+                        blockLatticeCellRegion = -innerCylinder & +ZPlanes[i] & -ZPlanes[i+1]
+                    elif isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Hexagon):
+                        innerHexPrism = openmc.model.hexagonal_prism(edge_length=smallestMult1Component.getDimension("ip")/3**.5, orientation='x')
+                        blockLatticeCellRegion = innerHexPrism & +ZPlanes[i] & -ZPlanes[i+1]
+                    elif isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Rectangle):
+                        innerRectPrism = openmc.model.rectangular_prism(width=smallestMult1Component.getDimension("widthInner"),
+                                                                        height=smallestMult1Component.getDimension("lengthInner"))
+                        blockLatticeCellRegion = innerRectPrism & +ZPlanes[i] & -ZPlanes[i+1]
+                    else:
+                        raise NotImplementedError("Shape type not supported yet")
+                    blockLatticeCell = openmc.Cell(name="blockLattice",
+                                                   fill = blockLattice,
+                                                   region = blockLatticeCellRegion)
+                    componentCellsInBlock.append(blockLatticeCell)
 
-                for j, component in enumerate(blockMinusDerivedShape):
-                    
-                    
+                for component in multGroups["1"]:
                     componentMaterial = buildComponentMaterial(component)
                     cell = openmc.Cell(name=component.getName(),
                                        fill=componentMaterial,
                                        region=buildCellRegion(component, bottomPlane=ZPlanes[i], topPlane=ZPlanes[i+1]))
                     if componentMaterial is not None:
                         materials.append(componentMaterial)
-                    componentCellsInBlock[j] = cell
-'''
+                    componentCellsInBlock.append(cell)
+
                 # Set region for DerivedShape component - there should be a max of one per block
-                for j, component in enumerate(block):
-                    if isinstance(component, armi.reactor.components.DerivedShape):
-                        a=1
-                        #componentCellsInBlock[j].region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock if blockCell.region is not None])
-'''
+                derivedShapeComponentCell = openmc.Cell(name=derivedShapeComponent.getName(),
+                                                        fill = derivedShapeComponentMaterial,
+                                                        region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]))
+                componentCellsInBlock.append(derivedShapeComponentCell)
+
                 componentCellsInAssembly += componentCellsInBlock
             assemblyUniverse = openmc.Universe(name=assembly.name, cells=componentCellsInAssembly)
 
@@ -342,7 +319,9 @@ class OpenMCWriter:
 
         # Write geometry to xml
         geom = openmc.Geometry(rootUniverse)
+        geom.merge_surfaces=True # merge redundant surfaces
 
+        print("Exporting to xml...")
         materials.export_to_xml()
         geom.export_to_xml()
 
@@ -389,4 +368,11 @@ class OpenMCWriter:
         #plot.colors = {'dummy': 'red'}
         plots = openmc.Plots([plot])
         plots.export_to_xml()
+        '''
+from armiopenmc.inputWriters import OpenMCWriter
+import armi; armi.configure()
+o = armi.init(fName="/home/aidan/armiCases/anl-afci-177/anl-afci-177.yaml")
+omcw = OpenMCWriter(reactor=o.r,options=None)
+
+        '''
 
