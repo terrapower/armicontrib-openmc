@@ -36,7 +36,7 @@ from armi.reactor.converters.blockConverters import MultipleComponentMerger
 from . import const
 
 import openmc
-from openmc.model import hexagonal_prism, ZCylinder
+from openmc.model import hexagonal_prism
 
 class OpenMCWriter:
     """
@@ -167,6 +167,11 @@ class OpenMCWriter:
 
         materials = openmc.Materials()
         emptyMaterial = openmc.Material()
+        plotColors = dict()
+        colorLookup = {"HT9": "steelblue",
+                       "UZr": "green",
+                       "Sodium": "antiquewhite",
+                       "B4C": "black"}
 
         if core.geomType == armi.reactor.geometry.GeomType.HEX:
             # Openmc uses awkward ring indexing system for hex lattices
@@ -191,6 +196,7 @@ class OpenMCWriter:
         for assembly in core: #[156:157]: #######################################
             # Write a universe for each assembly
             print("working on assembly " + str(assembly.getName()))
+            assemblyUniverse = openmc.Universe(name=assembly.name)
 
             # Create ZPlanes between blocks
             z0 = 0.0
@@ -201,32 +207,36 @@ class OpenMCWriter:
             ZPlanes[-1].boundary_type = 'vacuum' # Reset top plane boundary condition to vacuum
 
             componentCellsInAssembly = []
-            for i, block in enumerate(assembly):#[2:3]):
-                block = blendHelixComponentsIntoCoolant(block)
+            for i, block in enumerate(assembly):#[1:2]): ###############################
+                blockBottomPlane = ZPlanes[i]
+                blockTopPlane = ZPlanes[i+1]
+                
+                blockWithoutHelices = blendHelixComponentsIntoCoolant(block)
                 
                 # Get DerivedShape component. We need to set its region last
-                derivedShapeComponent = [component for component in block if isinstance(component, armi.reactor.components.DerivedShape)][0]
+                derivedShapeComponent = [component for component in blockWithoutHelices if isinstance(component, armi.reactor.components.DerivedShape)][0]
                 derivedShapeComponentMaterial = buildComponentMaterial(derivedShapeComponent)
                 if derivedShapeComponentMaterial is not None:
                     materials.append(derivedShapeComponentMaterial)
-                blockMinusDerivedShape = [component for component in block if not isinstance(component, armi.reactor.components.DerivedShape)]
+                    plotColors[derivedShapeComponentMaterial.id] = colorLookup[derivedShapeComponent.material.name]
+                blockMinusDerivedShape = [component for component in blockWithoutHelices if not isinstance(component, armi.reactor.components.DerivedShape)]
 
                 componentCellsInBlock = []
                 # Divide all components into groups with same mult
                 multGroups = dict()
                 for component in blockMinusDerivedShape:
                     mult = int(component.getDimension("mult"))
-                    if str(mult) not in multGroups:
-                        multGroups[str(mult)] = []
-                    multGroups[str(mult)].append(component)
+                    if mult not in multGroups:
+                        multGroups[mult] = []
+                    multGroups[mult].append(component)
 
                 # If any components have mult>1, we need a cell filled with a lattice of them
                 if len(multGroups)>1:
                     for mult in multGroups:
-                        if int(mult)>1:
+                        if mult>1:
                             # Determine number of rings -> solve mult=1+6*(nRings-1)(nRings)/2
-                            nRings = math.ceil(.5*(1+(1+4/3*(int(mult)-1))**.5))
-                            # NOTE: Currently supporting only 1 multGroup
+                            nRings = math.ceil(.5*(1+(1+4/3*(mult-1))**.5))
+                            # NOTE: Currently supporting only 1 multGroup with mult>1
                             # NOTE: Need better latticePitch
                             latticePitch = 1.1*max([component.getBoundingCircleOuterDiameter() for component in multGroups[mult]])
                             componentCellsInMultGroupUniverse = []
@@ -235,41 +245,44 @@ class OpenMCWriter:
                                 componentMaterial = buildComponentMaterial(component)
                                 cell = openmc.Cell(name=component.getName(),
                                                    fill=componentMaterial,
-                                                   region=buildCellRegion(component, bottomPlane=ZPlanes[i], topPlane=ZPlanes[i+1]))
+                                                   region=buildCellRegion(component, bottomPlane=blockBottomPlane, topPlane=blockTopPlane))
                                 if componentMaterial is not None:
                                     materials.append(componentMaterial)
+                                    plotColors[componentMaterial.id] = colorLookup[component.material.name]
                                 componentCellsInMultGroupUniverse.append(cell)
                             # Fill unused space in lattice with derivedShapeComponentMaterial
                             derivedShapeComponentLatticeCell = openmc.Cell(name=derivedShapeComponent.getName(),
                                                                     fill=derivedShapeComponentMaterial,
-                                                                    region=~openmc.Union([cell.region for cell in componentCellsInMultGroupUniverse]))
+                                                                    region=~openmc.Union([cell.region for cell in componentCellsInMultGroupUniverse]) & +blockBottomPlane & -blockTopPlane)
                             componentCellsInMultGroupUniverse.append(derivedShapeComponentLatticeCell)
-                            multGroupUniverse = openmc.Universe(name="multGroup"+mult, cells=componentCellsInMultGroupUniverse)
+                            multGroupUniverse = openmc.Universe(name="multGroup"+str(mult), cells=componentCellsInMultGroupUniverse)
                     # Set blockLattice
                     blockLattice = openmc.HexLattice()
                     blockLattice.pitch = [latticePitch]
+                    blockLattice.orientation = 'x'
                     blockLattice.center = (0,0)
                     blockLatticeRings = buildRings(nRings, multGroupUniverse)
                     blockLatticeRings.reverse()
                     blockLattice.universes = blockLatticeRings
-                    blockLatticeOuterCell = openmc.Cell(region=+boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder,
+                    blockLatticeOuterCell = openmc.Cell(region=+blockBottomPlane & -blockTopPlane & -boundingCylinder,#+boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder,
                                                         fill=derivedShapeComponentMaterial)
                     blockLatticeOuterUniverse = openmc.Universe(cells=[blockLatticeOuterCell])
-                    blockLattice.outer = blockLatticeOuterUniverse
+                    blockLattice.outer = blockLatticeOuterUniverse #assemblyUniverse
+                    #blockLattice.outer = blockLatticeOuterUniverse
                     # Need cell to fill with lattice
                     # Get smallest mult 1 component - blockLatticeCell will have region inside it
-                    mult1ComponentInnerDiameters = [component.getCircleInnerDiameter() for component in multGroups["1"]]
-                    smallestMult1Component = multGroups["1"][min(range(len(mult1ComponentInnerDiameters)), key=mult1ComponentInnerDiameters.__getitem__)]
+                    mult1ComponentInnerDiameters = [component.getCircleInnerDiameter() for component in multGroups[1]]
+                    smallestMult1Component = multGroups[1][min(range(len(mult1ComponentInnerDiameters)), key=mult1ComponentInnerDiameters.__getitem__)]
                     if isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Circle):
                         innerCylinder = openmc.ZCylinder(r=smallestMult1Component.getDimension("id")/2)
-                        blockLatticeCellRegion = -innerCylinder & +ZPlanes[i] & -ZPlanes[i+1]
+                        blockLatticeCellRegion = -innerCylinder & +blockBottomPlane & -blockTopPlane
                     elif isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Hexagon):
                         innerHexPrism = openmc.model.hexagonal_prism(edge_length=smallestMult1Component.getDimension("ip")/3**.5, orientation='x')
-                        blockLatticeCellRegion = innerHexPrism & +ZPlanes[i] & -ZPlanes[i+1]
+                        blockLatticeCellRegion = innerHexPrism & +blockBottomPlane & -blockTopPlane
                     elif isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Rectangle):
                         innerRectPrism = openmc.model.rectangular_prism(width=smallestMult1Component.getDimension("widthInner"),
                                                                         height=smallestMult1Component.getDimension("lengthInner"))
-                        blockLatticeCellRegion = innerRectPrism & +ZPlanes[i] & -ZPlanes[i+1]
+                        blockLatticeCellRegion = innerRectPrism & +blockBottomPlane & -blockTopPlane
                     else:
                         raise NotImplementedError("Shape type not supported yet")
                     blockLatticeCell = openmc.Cell(name="blockLattice",
@@ -277,23 +290,25 @@ class OpenMCWriter:
                                                    region = blockLatticeCellRegion)
                     componentCellsInBlock.append(blockLatticeCell)
 
-                for component in multGroups["1"]:
+                for component in multGroups[1]:
                     componentMaterial = buildComponentMaterial(component)
                     cell = openmc.Cell(name=component.getName(),
                                        fill=componentMaterial,
-                                       region=buildCellRegion(component, bottomPlane=ZPlanes[i], topPlane=ZPlanes[i+1]))
+                                       region=buildCellRegion(component, bottomPlane=blockBottomPlane, topPlane=blockTopPlane))
                     if componentMaterial is not None:
                         materials.append(componentMaterial)
+                        plotColors[componentMaterial.id] = colorLookup[component.material.name]
                     componentCellsInBlock.append(cell)
 
                 # Set region for DerivedShape component - there should be a max of one per block
                 derivedShapeComponentCell = openmc.Cell(name=derivedShapeComponent.getName(),
                                                         fill = derivedShapeComponentMaterial,
-                                                        region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]))
+                                                        region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]) & +blockBottomPlane & -blockTopPlane)
                 componentCellsInBlock.append(derivedShapeComponentCell)
 
                 componentCellsInAssembly += componentCellsInBlock
-            assemblyUniverse = openmc.Universe(name=assembly.name, cells=componentCellsInAssembly)
+            #assemblyUniverse = openmc.Universe(name=assembly.name, cells=componentCellsInAssembly)
+            assemblyUniverse.add_cells(componentCellsInAssembly)
 
             # Place the assembly in the correct place in the core
             if core.geomType == armi.reactor.geometry.GeomType.HEX:
@@ -319,10 +334,21 @@ class OpenMCWriter:
 
         # Write geometry to xml
         geom = openmc.Geometry(rootUniverse)
-        geom.merge_surfaces=True # merge redundant surfaces
+        #geom.merge_surfaces=True # merge redundant surfaces
+
+        plot = openmc.Plot()
+        plot.basis = 'xy'
+        plot.filename = self.r.getName()
+        plot.width = (300, 300) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
+        plot.pixels = (10000, 10000)
+        plot.origin = (0.0, 0.0, 20.0)
+        plot.color_by = 'material'
+        plot.colors = plotColors
+        plots = openmc.Plots([plot])
 
         print("Exporting to xml...")
         materials.export_to_xml()
+        plots.export_to_xml()
         geom.export_to_xml()
 
     def writeSettings(self):
@@ -360,11 +386,11 @@ class OpenMCWriter:
         plot.basis = 'xy'
         plot.filename = self.r.getName()
         plot.width = (300, 300) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
-        plot.pixels = (1000, 1000)
-        plot.origin = (0.0, 0.0, 7.5)
+        plot.pixels = (10000, 10000)
+        plot.origin = (0.0, 0.0, 20.0)
         plot.color_by = 'material'
         #geometry = openmc.Geometry.from_xml('geometry.xml')
-        plot.colorize(openmc.Geometry.from_xml('geometry.xml'))
+        #plot.colorize(openmc.Geometry.from_xml('geometry.xml'))
         #plot.colors = {'dummy': 'red'}
         plots = openmc.Plots([plot])
         plots.export_to_xml()
