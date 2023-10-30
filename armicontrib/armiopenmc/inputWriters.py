@@ -182,7 +182,7 @@ class OpenMCWriter:
 
             boundingCylinderBottomPlane = openmc.ZPlane(z0=0.0, boundary_type='vacuum')
             boundingCylinderTopPlane = openmc.ZPlane(z0=max([assembly.getHeight() for assembly in core]), boundary_type='vacuum')
-            boundingCylinder = openmc.ZCylinder(r=core.getBoundingCircleOuterDiameter()/2, boundary_type='vacuum')
+            boundingCylinder = openmc.ZCylinder(r=30.0, boundary_type='vacuum')#(r=core.getBoundingCircleOuterDiameter()/2, boundary_type='vacuum')
             
             boundingCell = openmc.Cell(region= +boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder)
 
@@ -238,7 +238,7 @@ class OpenMCWriter:
                             nRings = math.ceil(.5*(1+(1+4/3*(mult-1))**.5))
                             # NOTE: Currently supporting only 1 multGroup with mult>1
                             # NOTE: Need better latticePitch
-                            latticePitch = 1.1*max([component.getBoundingCircleOuterDiameter() for component in multGroups[mult]])
+                            latticePitch = 1.05*max([component.getBoundingCircleOuterDiameter() for component in multGroups[mult]])
                             componentCellsInMultGroupUniverse = []
                             
                             for component in multGroups[mult]:
@@ -274,14 +274,14 @@ class OpenMCWriter:
                     mult1ComponentInnerDiameters = [component.getCircleInnerDiameter() for component in multGroups[1]]
                     smallestMult1Component = multGroups[1][min(range(len(mult1ComponentInnerDiameters)), key=mult1ComponentInnerDiameters.__getitem__)]
                     if isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Circle):
-                        innerCylinder = openmc.ZCylinder(r=smallestMult1Component.getDimension("id")/2)
+                        innerCylinder = openmc.ZCylinder(r=smallestMult1Component.getDimension("id")/2-.05)
                         blockLatticeCellRegion = -innerCylinder & +blockBottomPlane & -blockTopPlane
                     elif isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Hexagon):
-                        innerHexPrism = openmc.model.hexagonal_prism(edge_length=smallestMult1Component.getDimension("ip")/3**.5, orientation='x')
+                        innerHexPrism = openmc.model.hexagonal_prism(edge_length=smallestMult1Component.getDimension("ip")/3**.5-.05, orientation='x')
                         blockLatticeCellRegion = innerHexPrism & +blockBottomPlane & -blockTopPlane
                     elif isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Rectangle):
-                        innerRectPrism = openmc.model.rectangular_prism(width=smallestMult1Component.getDimension("widthInner"),
-                                                                        height=smallestMult1Component.getDimension("lengthInner"))
+                        innerRectPrism = openmc.model.rectangular_prism(width=smallestMult1Component.getDimension("widthInner")-.05,
+                                                                        height=smallestMult1Component.getDimension("lengthInner")-.05)
                         blockLatticeCellRegion = innerRectPrism & +blockBottomPlane & -blockTopPlane
                     else:
                         raise NotImplementedError("Shape type not supported yet")
@@ -334,12 +334,12 @@ class OpenMCWriter:
 
         # Write geometry to xml
         geom = openmc.Geometry(rootUniverse)
-        #geom.merge_surfaces=True # merge redundant surfaces
+        geom.merge_surfaces=True # merge redundant surfaces
 
         plot = openmc.Plot()
         plot.basis = 'xy'
         plot.filename = self.r.getName()
-        plot.width = (300, 300) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
+        plot.width = (30, 30) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
         plot.pixels = (10000, 10000)
         plot.origin = (0.0, 0.0, 20.0)
         plot.color_by = 'material'
@@ -355,29 +355,37 @@ class OpenMCWriter:
         """Write the openmc settings input file."""
         settings = openmc.Settings()
         settings.run_mode = 'eigenvalue'
-        point = openmc.stats.Point(xyz=(0.0, 0.0, self.r.core[0].getHeight()/2))
-        settings.src = openmc.Source(space=point)
-        settings.batches = 10
-        settings.inactive = 1
-        settings.particles = 100
+        point = openmc.stats.Box(lower_left=(-30.0,-30.0,0.0), upper_right=(30.0,30.0,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
+        settings.source = openmc.Source(space=point)
+        settings.batches = 100
+        settings.inactive = 10
+        settings.particles = 10000
         settings.generations_per_batch = 1
         settings.temperature = {'method': 'interpolation', 'default': 350.0}
-        settings.output = {'tallies': True, 'summary': False}
+        settings.output = {'tallies': True, 'summary': True}
+        settings.verbosity = 7
         entropyMesh = openmc.RegularMesh()
-        bbWidth = self.r.core.getBoundingCircleOuterDiameter()/2
+        bbWidth = 30 #320/2#self.r.core.getBoundingCircleOuterDiameter()/2
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         entropyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         entropyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        entropyMesh.dimension = (8,8,8)
+        entropyMesh.dimension = (25, 25, 25)
         settings.entropy_mesh = entropyMesh
         settings.export_to_xml()
 
     def writeTallies(self):
         """Write the openmc tallies input file."""
         tallies = openmc.Tallies()
-        dummyTally = openmc.Tally()
-        dummyTally.scores = ['fission']
-        tallies.append(dummyTally)
+        fissionTally = openmc.Tally()
+        fissionTally.scores = ['fission', 'flux']
+        fissionTallyMesh = openmc.RegularMesh()
+        bbWidth = 30 #self.r.core.getBoundingCircleOuterDiameter()/2
+        bbHeight = max([assembly.getHeight() for assembly in self.r.core])
+        fissionTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
+        fissionTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
+        fissionTallyMesh.dimension = (1000, 1000, 1)
+        fissionTally.filters = [openmc.MeshFilter(mesh=fissionTallyMesh)]
+        tallies.append(fissionTally)
         tallies.export_to_xml()
 
     def writePlots(self):
