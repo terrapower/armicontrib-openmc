@@ -237,10 +237,13 @@ class OpenMCWriter:
                     for mult in multGroups:
                         if mult>1:
                             # Determine number of rings -> solve mult=1+6*(nRings-1)(nRings)/2
-                            nRings = 1# math.ceil(.5*(1+(1+4/3*(mult-1))**.5))
+                            nRings = math.ceil(.5*(1+(1+4/3*(mult-1))**.5))
                             # NOTE: Currently supporting only 1 multGroup with mult>1
                             # NOTE: Need better latticePitch
-                            latticePitch = 1.05*max([component.getBoundingCircleOuterDiameter() for component in multGroups[mult]])
+                            if block.hasPinPitch():
+                                latticePitch = block.getPinPitch()
+                            else:
+                               latticePitch = 1.2*max([component.getBoundingCircleOuterDiameter() for component in multGroups[mult]])
                             componentCellsInMultGroupUniverse = []
                             
                             for component in multGroups[mult]:
@@ -342,7 +345,7 @@ class OpenMCWriter:
         plot.basis = 'xy'
         plot.filename = self.r.getName()
         plot.width = (300, 300) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
-        plot.pixels = (2000, 2000)
+        plot.pixels = (4000, 4000)
         plot.origin = (0.0, 0.0, 20.0)
         plot.color_by = 'material'
         plot.colors = plotColors
@@ -359,9 +362,9 @@ class OpenMCWriter:
         settings.run_mode = 'eigenvalue'
         point = openmc.stats.Box(lower_left=(-300.0,-300.0,0.0), upper_right=(300.0,300.0,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
         settings.source = openmc.Source(space=point)
-        settings.batches = 100
+        settings.batches = 40
         settings.inactive = 10
-        settings.particles = 1000
+        settings.particles = 100000
         settings.generations_per_batch = 1
         settings.temperature = {'method': 'interpolation', 'default': 350.0}
         settings.output = {'tallies': True, 'summary': True}
@@ -371,7 +374,7 @@ class OpenMCWriter:
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         entropyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         entropyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        entropyMesh.dimension = (25, 25, 25)
+        entropyMesh.dimension = (10, 10, 10)
         settings.entropy_mesh = entropyMesh
         settings.export_to_xml()
 
@@ -379,15 +382,20 @@ class OpenMCWriter:
         """Write the openmc tallies input file."""
         tallies = openmc.Tallies()
         fissionTally = openmc.Tally()
-        fissionTally.scores = ['fission', 'flux']
+        fissionTally.scores = ['fission']
+        fissionTally.nuclides = ['U235', 'U238']
         fissionTallyMesh = openmc.RegularMesh()
         bbWidth = 300 #self.r.core.getBoundingCircleOuterDiameter()/2
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fissionTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fissionTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        fissionTallyMesh.dimension = (1000, 1000, 1)
+        fissionTallyMesh.dimension = (4000, 4000, 1)
         fissionTally.filters = [openmc.MeshFilter(mesh=fissionTallyMesh)]
         tallies.append(fissionTally)
+        fluxTally = openmc.Tally()
+        fluxTally.scores = ['flux']
+        fluxTally.filters = [openmc.EnergyFilter([0.0, 1.0e6, 3.0e6]), openmc.MeshFilter(mesh=fissionTallyMesh)]
+        tallies.append(fluxTally)
         tallies.export_to_xml()
 
     def writePlots(self):
