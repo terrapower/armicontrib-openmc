@@ -182,13 +182,15 @@ class OpenMCWriter:
 
             boundingCylinderBottomPlane = openmc.ZPlane(z0=0.0, boundary_type='vacuum')
             boundingCylinderTopPlane = openmc.ZPlane(z0=max([assembly.getHeight() for assembly in core]), boundary_type='vacuum')
-            boundingCylinder = openmc.ZCylinder(r=30.0, boundary_type='vacuum')#(r=core.getBoundingCircleOuterDiameter()/2, boundary_type='vacuum')
+            boundingCylinder = openmc.ZCylinder(r=320.0, boundary_type='vacuum')#(r=core.getBoundingCircleOuterDiameter()/2, boundary_type='vacuum')
             
             boundingCell = openmc.Cell(region= +boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder)
+            boundingCell2 = openmc.Cell(region= +boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder)
 
             # Create blank list of assembly universes for the lattice - we will fill in universes individually later
             emptyUniverse = openmc.Universe(cells=[boundingCell])
-            assemblyRings = buildRings(numRings, emptyUniverse)
+            emptyUniverse2 = openmc.Universe(cells=[boundingCell2])
+            assemblyRings = buildRings(numRings, emptyUniverse2)
 
         else:
             raise TypeError("Unsupported geometry type")
@@ -235,7 +237,7 @@ class OpenMCWriter:
                     for mult in multGroups:
                         if mult>1:
                             # Determine number of rings -> solve mult=1+6*(nRings-1)(nRings)/2
-                            nRings = math.ceil(.5*(1+(1+4/3*(mult-1))**.5))
+                            nRings = 1# math.ceil(.5*(1+(1+4/3*(mult-1))**.5))
                             # NOTE: Currently supporting only 1 multGroup with mult>1
                             # NOTE: Need better latticePitch
                             latticePitch = 1.05*max([component.getBoundingCircleOuterDiameter() for component in multGroups[mult]])
@@ -320,7 +322,7 @@ class OpenMCWriter:
         # Create core lattice
         if core.geomType == armi.reactor.geometry.GeomType.HEX:
             lattice = openmc.HexLattice()
-            lattice.pitch = [core.getAssemblyPitch()]
+            lattice.pitch = [core.getAssemblyPitch()+0.0001]
             lattice.center = (0,0)
             assemblyRings.reverse()
             lattice.universes = assemblyRings
@@ -339,8 +341,8 @@ class OpenMCWriter:
         plot = openmc.Plot()
         plot.basis = 'xy'
         plot.filename = self.r.getName()
-        plot.width = (30, 30) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
-        plot.pixels = (10000, 10000)
+        plot.width = (300, 300) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
+        plot.pixels = (2000, 2000)
         plot.origin = (0.0, 0.0, 20.0)
         plot.color_by = 'material'
         plot.colors = plotColors
@@ -355,17 +357,17 @@ class OpenMCWriter:
         """Write the openmc settings input file."""
         settings = openmc.Settings()
         settings.run_mode = 'eigenvalue'
-        point = openmc.stats.Box(lower_left=(-30.0,-30.0,0.0), upper_right=(30.0,30.0,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
+        point = openmc.stats.Box(lower_left=(-300.0,-300.0,0.0), upper_right=(300.0,300.0,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
         settings.source = openmc.Source(space=point)
         settings.batches = 100
         settings.inactive = 10
-        settings.particles = 10000
+        settings.particles = 1000
         settings.generations_per_batch = 1
         settings.temperature = {'method': 'interpolation', 'default': 350.0}
         settings.output = {'tallies': True, 'summary': True}
         settings.verbosity = 7
         entropyMesh = openmc.RegularMesh()
-        bbWidth = 30 #320/2#self.r.core.getBoundingCircleOuterDiameter()/2
+        bbWidth = 300 #320/2#self.r.core.getBoundingCircleOuterDiameter()/2
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         entropyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         entropyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
@@ -379,7 +381,7 @@ class OpenMCWriter:
         fissionTally = openmc.Tally()
         fissionTally.scores = ['fission', 'flux']
         fissionTallyMesh = openmc.RegularMesh()
-        bbWidth = 30 #self.r.core.getBoundingCircleOuterDiameter()/2
+        bbWidth = 300 #self.r.core.getBoundingCircleOuterDiameter()/2
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fissionTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fissionTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
@@ -394,7 +396,7 @@ class OpenMCWriter:
         plot.basis = 'xy'
         plot.filename = self.r.getName()
         plot.width = (300, 300) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
-        plot.pixels = (10000, 10000)
+        plot.pixels = (1000, 1000)
         plot.origin = (0.0, 0.0, 20.0)
         plot.color_by = 'material'
         #geometry = openmc.Geometry.from_xml('geometry.xml')
