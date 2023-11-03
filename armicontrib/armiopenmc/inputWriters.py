@@ -24,19 +24,11 @@ import math
 
 import armi
 from armi.nucDirectory import nuclideBases
-from armi import runLog
-from armi.physics import neutronics
-from armi.reactor import geometry
-from armi.utils.units import ASCII_LETTER_A, ASCII_ZERO
 from armi.utils import hexagon
-from armi.reactor.flags import Flags
 from armi.reactor.converters.blockConverters import MultipleComponentMerger
-
-
-from . import const
+from armi.reactor.components import basicShapes, complexShapes
 
 import openmc
-from openmc.model import hexagonal_prism
 
 class OpenMCWriter:
     """
@@ -50,13 +42,13 @@ class OpenMCWriter:
         self.options = options
 
     def writeGeometry(self):
-        """Write the openmc geometry input file."""
+        """Write the openmc geometry, materials, and plots input file."""
         
         def blendHelixComponentsIntoCoolant(block, solventName='coolant'):
             """OpenMC doesn't support helixes, so blend them all into coolant"""
             helixComponentNames = []
             for component in block:
-                if isinstance(component, armi.reactor.components.complexShapes.Helix):
+                if isinstance(component, complexShapes.Helix):
                     helixComponentNames.append(component.getName()) 
             if len(helixComponentNames)>0:
                 block = MultipleComponentMerger(sourceBlock=block, soluteNames=helixComponentNames, solventName=solventName).convert()
@@ -66,23 +58,23 @@ class OpenMCWriter:
             """Build region based on shape"""
 
             # Circle
-            if isinstance(component, armi.reactor.components.basicShapes.Circle):
+            if isinstance(component, basicShapes.Circle):
                 innerCylinder = openmc.ZCylinder(r=component.getDimension("id")/2)
                 outerCylinder = openmc.ZCylinder(r=component.getDimension("od")/2)
                 region = +bottomPlane & -topPlane & +innerCylinder & -outerCylinder
                 return region
 
             # Hexagon
-            if isinstance(component, armi.reactor.components.basicShapes.Hexagon):
+            if isinstance(component, basicShapes.Hexagon):
                 innerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("ip")/3**.5,
-                                                             orientation='x') # Check on orientation
+                                                             orientation='x')
                 outerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("op")/3**.5,
                                                              orientation='x')
                 region = +bottomPlane & -topPlane & ~innerHexPrism & outerHexPrism
                 return region
 
             # Rectangle
-            if isinstance(component, armi.reactor.components.basicShapes.Rectangle):
+            if isinstance(component, basicShapes.Rectangle):
                 innerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthInner"),
                                                                 height=component.getDimension("lengthInner")) # Check that width/height aren't flipped
                 outerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthOuter"),
@@ -98,7 +90,7 @@ class OpenMCWriter:
                 return
 
             # Helix
-            if isinstance(component, armi.reactor.components.complexShapes.Helix):
+            if isinstance(component, complexShapes.Helix):
                 # Note: Helix components are automatically blended into coolant. We should never get here.
                 warnings.warn("Helix shape not supported by OpenMC. Ignoring helical component.")
                 return
@@ -147,6 +139,7 @@ class OpenMCWriter:
             return rings
 
         def buildComponentMaterial(component):
+            """Build OpenMC material for ARMI component"""
             if component.material.name=="Void":
                 return None
             componentMaterial = openmc.Material(name=component.material.name)
@@ -175,14 +168,12 @@ class OpenMCWriter:
 
         if core.geomType == armi.reactor.geometry.GeomType.HEX:
             # Openmc uses awkward ring indexing system for hex lattices
-
-            """There may be a cleaner way to do this with core.getAssembliesInRing(), etc."""
-            #numRings = 1  #########################################
+            # NOTE: There may be a cleaner way to do this with core.getAssembliesInRing(), etc."""
             numRings = core.numRings
 
             boundingCylinderBottomPlane = openmc.ZPlane(z0=0.0, boundary_type='vacuum')
             boundingCylinderTopPlane = openmc.ZPlane(z0=max([assembly.getHeight() for assembly in core]), boundary_type='vacuum')
-            boundingCylinder = openmc.ZCylinder(r=320.0, boundary_type='vacuum')#(r=core.getBoundingCircleOuterDiameter()/2, boundary_type='vacuum')
+            boundingCylinder = openmc.ZCylinder(r=320.0, boundary_type='vacuum')
             
             boundingCell = openmc.Cell(region= +boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder)
             boundingCell2 = openmc.Cell(region= +boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder)
@@ -195,9 +186,9 @@ class OpenMCWriter:
         else:
             raise TypeError("Unsupported geometry type")
 
-        for assembly in core: #[156:157]: #######################################
+        for assembly in core:
             # Write a universe for each assembly
-            print("working on assembly " + str(assembly.getName()))
+            print("Working on assembly " + str(assembly.getName()))
             assemblyUniverse = openmc.Universe(name=assembly.name)
 
             # Create ZPlanes between blocks
@@ -209,7 +200,7 @@ class OpenMCWriter:
             ZPlanes[-1].boundary_type = 'vacuum' # Reset top plane boundary condition to vacuum
 
             componentCellsInAssembly = []
-            for i, block in enumerate(assembly):#[1:2]): ###############################
+            for i, block in enumerate(assembly):
                 blockBottomPlane = ZPlanes[i]
                 blockTopPlane = ZPlanes[i+1]
                 
@@ -269,22 +260,21 @@ class OpenMCWriter:
                     blockLatticeRings = buildRings(nRings, multGroupUniverse)
                     blockLatticeRings.reverse()
                     blockLattice.universes = blockLatticeRings
-                    blockLatticeOuterCell = openmc.Cell(region=+blockBottomPlane & -blockTopPlane & -boundingCylinder,#+boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder,
+                    blockLatticeOuterCell = openmc.Cell(region=+blockBottomPlane & -blockTopPlane & -boundingCylinder,
                                                         fill=derivedShapeComponentMaterial)
                     blockLatticeOuterUniverse = openmc.Universe(cells=[blockLatticeOuterCell])
-                    blockLattice.outer = blockLatticeOuterUniverse #assemblyUniverse
-                    #blockLattice.outer = blockLatticeOuterUniverse
+                    blockLattice.outer = blockLatticeOuterUniverse
                     # Need cell to fill with lattice
                     # Get smallest mult 1 component - blockLatticeCell will have region inside it
                     mult1ComponentInnerDiameters = [component.getCircleInnerDiameter() for component in multGroups[1]]
                     smallestMult1Component = multGroups[1][min(range(len(mult1ComponentInnerDiameters)), key=mult1ComponentInnerDiameters.__getitem__)]
-                    if isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Circle):
+                    if isinstance(smallestMult1Component, basicShapes.Circle):
                         innerCylinder = openmc.ZCylinder(r=smallestMult1Component.getDimension("id")/2-.05)
                         blockLatticeCellRegion = -innerCylinder & +blockBottomPlane & -blockTopPlane
-                    elif isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Hexagon):
+                    elif isinstance(smallestMult1Component, basicShapes.Hexagon):
                         innerHexPrism = openmc.model.hexagonal_prism(edge_length=smallestMult1Component.getDimension("ip")/3**.5-.05, orientation='x')
                         blockLatticeCellRegion = innerHexPrism & +blockBottomPlane & -blockTopPlane
-                    elif isinstance(smallestMult1Component, armi.reactor.components.basicShapes.Rectangle):
+                    elif isinstance(smallestMult1Component, basicShapes.Rectangle):
                         innerRectPrism = openmc.model.rectangular_prism(width=smallestMult1Component.getDimension("widthInner")-.05,
                                                                         height=smallestMult1Component.getDimension("lengthInner")-.05)
                         blockLatticeCellRegion = innerRectPrism & +blockBottomPlane & -blockTopPlane
@@ -312,7 +302,6 @@ class OpenMCWriter:
                 componentCellsInBlock.append(derivedShapeComponentCell)
 
                 componentCellsInAssembly += componentCellsInBlock
-            #assemblyUniverse = openmc.Universe(name=assembly.name, cells=componentCellsInAssembly)
             assemblyUniverse.add_cells(componentCellsInAssembly)
 
             # Place the assembly in the correct place in the core
@@ -340,7 +329,8 @@ class OpenMCWriter:
         # Write geometry to xml
         geom = openmc.Geometry(rootUniverse)
         geom.merge_surfaces=True # merge redundant surfaces
-
+        
+        # Write plots xml file
         plot = openmc.Plot()
         plot.basis = 'xy'
         plot.filename = self.r.getName()
@@ -357,7 +347,7 @@ class OpenMCWriter:
         geom.export_to_xml()
 
     def writeSettings(self):
-        """Write the openmc settings input file."""
+        """Write the OpenMC settings input file."""
         settings = openmc.Settings()
         settings.run_mode = 'eigenvalue'
         point = openmc.stats.Box(lower_left=(-300.0,-300.0,0.0), upper_right=(300.0,300.0,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
@@ -379,7 +369,7 @@ class OpenMCWriter:
         settings.export_to_xml()
 
     def writeTallies(self):
-        """Write the openmc tallies input file."""
+        """Write the OpenMC tallies input file."""
         tallies = openmc.Tallies()
         fissionTally = openmc.Tally()
         fissionTally.scores = ['fission']
@@ -394,29 +384,13 @@ class OpenMCWriter:
         tallies.append(fissionTally)
         fluxTally = openmc.Tally()
         fluxTally.scores = ['flux']
-        fluxTally.filters = [openmc.EnergyFilter([0.0, 1.0e6, 3.0e6]), openmc.MeshFilter(mesh=fissionTallyMesh)]
+        fluxTallyMesh = openmc.RegularMesh()
+        bbWidth = 300 #self.r.core.getBoundingCircleOuterDiameter()/2
+        bbHeight = max([assembly.getHeight() for assembly in self.r.core])
+        fluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
+        fluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
+        fluxTallyMesh.dimension = (4000, 4000, 1)
+        fluxTally.filters = [openmc.EnergyFilter([0.0, 1.0e6, 3.0e6]), openmc.MeshFilter(mesh=fluxTallyMesh)]
         tallies.append(fluxTally)
         tallies.export_to_xml()
-
-    def writePlots(self):
-        """Write the openmc plots input file."""
-        plot = openmc.Plot()
-        plot.basis = 'xy'
-        plot.filename = self.r.getName()
-        plot.width = (300, 300) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
-        plot.pixels = (1000, 1000)
-        plot.origin = (0.0, 0.0, 20.0)
-        plot.color_by = 'material'
-        #geometry = openmc.Geometry.from_xml('geometry.xml')
-        #plot.colorize(openmc.Geometry.from_xml('geometry.xml'))
-        #plot.colors = {'dummy': 'red'}
-        plots = openmc.Plots([plot])
-        plots.export_to_xml()
-        '''
-from armiopenmc.inputWriters import OpenMCWriter
-import armi; armi.configure()
-o = armi.init(fName="/home/aidan/armiCases/anl-afci-177/anl-afci-177.yaml")
-omcw = OpenMCWriter(reactor=o.r,options=None)
-
-        '''
 
