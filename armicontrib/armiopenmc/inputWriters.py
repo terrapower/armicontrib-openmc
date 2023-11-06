@@ -43,7 +43,7 @@ class OpenMCWriter:
 
     def writeGeometry(self):
         """Write the openmc geometry, materials, and plots input file."""
-        
+
         def blendHelixComponentsIntoCoolant(block, solventName='coolant'):
             """OpenMC doesn't support helixes, so blend them all into coolant"""
             helixComponentNames = []
@@ -53,7 +53,7 @@ class OpenMCWriter:
             if len(helixComponentNames)>0:
                 block = MultipleComponentMerger(sourceBlock=block, soluteNames=helixComponentNames, solventName=solventName).convert()
             return block
-        
+
         def buildCellRegion(component, bottomPlane, topPlane):
             """Build region based on shape"""
 
@@ -126,7 +126,7 @@ class OpenMCWriter:
                         pos = 6*ring*4/6+x
 
             return [ring, int(pos)]
-            
+
         def buildRings(numRings, universe):
             """Assemble rings for use in openmc.HexLattice"""
             # Note: Need to rings.reverse() before assigning to lattice.universes. Not doing it here keeps indexing easy.
@@ -167,21 +167,39 @@ class OpenMCWriter:
                        "B4C": "black"}
 
         if core.geomType == armi.reactor.geometry.GeomType.HEX:
-            # Openmc uses awkward ring indexing system for hex lattices
-            # NOTE: There may be a cleaner way to do this with core.getAssembliesInRing(), etc."""
-            numRings = core.numRings
 
-            boundingCylinderBottomPlane = openmc.ZPlane(z0=0.0, boundary_type='vacuum')
-            boundingCylinderTopPlane = openmc.ZPlane(z0=max([assembly.getHeight() for assembly in core]), boundary_type='vacuum')
-            boundingCylinder = openmc.ZCylinder(r=320.0, boundary_type='vacuum')
-            
-            boundingCell = openmc.Cell(region= +boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder)
-            boundingCell2 = openmc.Cell(region= +boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder)
+            numRings = core.numRings
+            boundingCylinderRadius = core.getCoreRadius()
+            boundingCylinder = openmc.ZCylinder(r=boundingCylinderRadius, boundary_type='vacuum')
+
+            if core.symmetry.domain==armi.reactor.geometry.DomainType.FULL_CORE:
+                boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type='vacuum')
+                boundingCellTopPlane = openmc.ZPlane(z0=max([assembly.getHeight() for assembly in core]), boundary_type='vacuum')
+                boundingCellRegion = -boundingCylinder & +boundingCellBottomPlane & -boundingCellTopPlane
+
+            if core.symmetry.domain==armi.reactor.geometry.DomainType.THIRD_CORE:
+                armi.reactor.converters.geometryConverters.EdgeAssemblyChanger().addEdgeAssemblies(core)
+                boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type='vacuum')
+                boundingCellTopPlane = openmc.ZPlane(z0=max([assembly.getHeight() for assembly in core]), boundary_type='vacuum')
+                
+                periodicPlane0 = openmc.Plane(a=0.0,b=1.0,c=0.0,d=0.0)
+                periodicPlane1 = openmc.Plane(a=3.0**.5,b=1.0,c=0.0,d=0.0)
+
+                if core.symmetry.boundary==armi.reactor.geometry.BoundaryType.PERIODIC:
+                    periodicPlane0.boundary_type = 'periodic'
+                    periodicPlane1.boundary_type = 'periodic'
+
+                if core.symmetry.boundary==armi.reactor.geometry.BoundaryType.REFLECTIVE:
+                    periodicPlane0.boundary_type = 'reflective'
+                    periodicPlane1.boundary_type = 'reflective'
+                boundingCellRegion = -boundingCylinder & +periodicPlane0 & +periodicPlane1 & +boundingCellBottomPlane & -boundingCellTopPlane
+
+            emptyCellRegion = -boundingCylinder & +boundingCellBottomPlane & -boundingCellTopPlane
+            emptyCell = openmc.Cell(region = emptyCellRegion)
 
             # Create blank list of assembly universes for the lattice - we will fill in universes individually later
-            emptyUniverse = openmc.Universe(cells=[boundingCell])
-            emptyUniverse2 = openmc.Universe(cells=[boundingCell2])
-            assemblyRings = buildRings(numRings, emptyUniverse2)
+            emptyUniverse = openmc.Universe(cells=[emptyCell])
+            assemblyRings = buildRings(numRings, emptyUniverse)
 
         else:
             raise TypeError("Unsupported geometry type")
@@ -203,9 +221,9 @@ class OpenMCWriter:
             for i, block in enumerate(assembly):
                 blockBottomPlane = ZPlanes[i]
                 blockTopPlane = ZPlanes[i+1]
-                
+
                 blockWithoutHelices = blendHelixComponentsIntoCoolant(block)
-                
+
                 # Get DerivedShape component. We need to set its region last
                 derivedShapeComponent = [component for component in blockWithoutHelices if isinstance(component, armi.reactor.components.DerivedShape)][0]
                 derivedShapeComponentMaterial = buildComponentMaterial(derivedShapeComponent)
@@ -236,7 +254,7 @@ class OpenMCWriter:
                             else:
                                latticePitch = 1.2*max([component.getBoundingCircleOuterDiameter() for component in multGroups[mult]])
                             componentCellsInMultGroupUniverse = []
-                            
+
                             for component in multGroups[mult]:
                                 componentMaterial = buildComponentMaterial(component)
                                 cell = openmc.Cell(name=component.getName(),
@@ -323,18 +341,18 @@ class OpenMCWriter:
             raise TypeError("Unsupported geometry type")
 
         # Create root universe
-        rootCell = openmc.Cell(name="rootCell", fill=lattice, region= +boundingCylinderBottomPlane & -boundingCylinderTopPlane & -boundingCylinder)
+        rootCell = openmc.Cell(name="rootCell", fill=lattice, region = boundingCellRegion)
         rootUniverse = openmc.Universe(cells=[rootCell])
 
         # Write geometry to xml
         geom = openmc.Geometry(rootUniverse)
         geom.merge_surfaces=True # merge redundant surfaces
-        
+
         # Write plots xml file
         plot = openmc.Plot()
         plot.basis = 'xy'
         plot.filename = self.r.getName()
-        plot.width = (300, 300) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
+        plot.width = (boundingCylinderRadius, boundingCylinderRadius) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
         plot.pixels = (4000, 4000)
         plot.origin = (0.0, 0.0, 20.0)
         plot.color_by = 'material'
@@ -350,7 +368,8 @@ class OpenMCWriter:
         """Write the OpenMC settings input file."""
         settings = openmc.Settings()
         settings.run_mode = 'eigenvalue'
-        point = openmc.stats.Box(lower_left=(-300.0,-300.0,0.0), upper_right=(300.0,300.0,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
+        boundingCyliderRadius = self.r.core.getCoreRadius()
+        point = openmc.stats.Box(lower_left=(-boundingCyliderRadius,-boundingCyliderRadius,0.0), upper_right=(boundingCyliderRadius,boundingCyliderRadius,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
         settings.source = openmc.Source(space=point)
         settings.batches = 40
         settings.inactive = 10
@@ -360,7 +379,7 @@ class OpenMCWriter:
         settings.output = {'tallies': True, 'summary': True}
         settings.verbosity = 7
         entropyMesh = openmc.RegularMesh()
-        bbWidth = 300 #320/2#self.r.core.getBoundingCircleOuterDiameter()/2
+        bbWidth = boundingCyliderRadius
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         entropyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         entropyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
@@ -375,7 +394,7 @@ class OpenMCWriter:
         fissionTally.scores = ['fission']
         fissionTally.nuclides = ['U235', 'U238']
         fissionTallyMesh = openmc.RegularMesh()
-        bbWidth = 300 #self.r.core.getBoundingCircleOuterDiameter()/2
+        bbWidth = self.r.core.getCoreRadius()
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fissionTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fissionTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
@@ -385,12 +404,12 @@ class OpenMCWriter:
         fluxTally = openmc.Tally()
         fluxTally.scores = ['flux']
         fluxTallyMesh = openmc.RegularMesh()
-        bbWidth = 300 #self.r.core.getBoundingCircleOuterDiameter()/2
+        bbWidth = self.r.core.getCoreRadius()
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
         fluxTallyMesh.dimension = (4000, 4000, 1)
-        fluxTally.filters = [openmc.EnergyFilter([0.0, 1.0e6, 3.0e6]), openmc.MeshFilter(mesh=fluxTallyMesh)]
+        fluxTally.filters = [openmc.EnergyFilter([0.0, 10.0, 100.0, 1000.0, 1.0e4, 1.0e5, 1.0e6, 3.0e6]), openmc.MeshFilter(mesh=fluxTallyMesh)]
         tallies.append(fluxTally)
         tallies.export_to_xml()
 
