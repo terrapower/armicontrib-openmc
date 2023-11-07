@@ -27,6 +27,7 @@ from armi.nucDirectory import nuclideBases
 from armi.utils import hexagon
 from armi.reactor.converters.blockConverters import MultipleComponentMerger
 from armi.reactor.components import basicShapes, complexShapes
+from armi.physics.neutronics import energyGroups
 
 import openmc
 
@@ -390,6 +391,8 @@ class OpenMCWriter:
     def writeTallies(self):
         """Write the OpenMC tallies input file."""
         tallies = openmc.Tallies()
+        
+        # Fission tally
         fissionTally = openmc.Tally()
         fissionTally.scores = ['fission']
         fissionTally.nuclides = ['U235', 'U238']
@@ -398,9 +401,11 @@ class OpenMCWriter:
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fissionTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fissionTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        fissionTallyMesh.dimension = (4000, 4000, 1)
+        fissionTallyMesh.dimension = (1000, 1000, 1)
         fissionTally.filters = [openmc.MeshFilter(mesh=fissionTallyMesh)]
         tallies.append(fissionTally)
+        
+        # Multigroup Flux tally
         fluxTally = openmc.Tally()
         fluxTally.scores = ['flux']
         fluxTallyMesh = openmc.RegularMesh()
@@ -408,8 +413,25 @@ class OpenMCWriter:
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        fluxTallyMesh.dimension = (4000, 4000, 1)
-        fluxTally.filters = [openmc.EnergyFilter([0.0, 10.0, 100.0, 1000.0, 1.0e4, 1.0e5, 1.0e6, 3.0e6]), openmc.MeshFilter(mesh=fluxTallyMesh)]
+        fluxTallyMesh.dimension = (1000, 1000, 1)
+        energyGroupStructure = energyGroups.getGroupStructure("ANL33")
+        energyGroupStructure.append(0.0)
+        energyGroupStructure.reverse()
+        fluxTallyEnergyFilter = openmc.EnergyFilter(energyGroupStructure)
+        fluxTally.filters = [fluxTallyEnergyFilter, openmc.MeshFilter(mesh=fluxTallyMesh)]
         tallies.append(fluxTally)
+        
+        # Power tally
+        powerTally = openmc.Tally()
+        powerTally.scores = ['heating']
+        powerTallyMesh = openmc.RegularMesh()
+        bbWidth = self.r.core.getCoreRadius()
+        bbHeight = max([assembly.getHeight() for assembly in self.r.core])
+        powerTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
+        powerTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
+        powerTallyMesh.dimension = (1000, 1000, 1)
+        powerTally.filters = [openmc.MeshFilter(mesh=powerTallyMesh)]
+        tallies.append(powerTally)
+        
         tallies.export_to_xml()
 
