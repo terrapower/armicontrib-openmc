@@ -27,6 +27,7 @@ from armi.nucDirectory import nuclideBases
 from armi.utils import hexagon
 from armi.reactor.converters.blockConverters import MultipleComponentMerger
 from armi.reactor.components import basicShapes, complexShapes
+from armi.reactor import systemLayoutInput
 from armi.physics.neutronics import energyGroups
 
 import openmc
@@ -55,31 +56,27 @@ class OpenMCWriter:
                 block = MultipleComponentMerger(sourceBlock=block, soluteNames=helixComponentNames, solventName=solventName).convert()
             return block
 
-        def buildCellRegion(component, bottomPlane, topPlane):
+        def buildCellRegion(component, bottomPlane, topPlane, origin=(0.0,0.0)):
             """Build region based on shape"""
 
             # Circle
             if isinstance(component, basicShapes.Circle):
-                innerCylinder = openmc.ZCylinder(r=component.getDimension("id")/2)
-                outerCylinder = openmc.ZCylinder(r=component.getDimension("od")/2)
+                innerCylinder = openmc.ZCylinder(x0=origin[0], y0=origin[1], r=component.getDimension("id")/2)
+                outerCylinder = openmc.ZCylinder(x0=origin[0], y0=origin[1], r=component.getDimension("od")/2)
                 region = +bottomPlane & -topPlane & +innerCylinder & -outerCylinder
                 return region
 
             # Hexagon
             if isinstance(component, basicShapes.Hexagon):
-                innerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("ip")/3**.5,
-                                                             orientation='x')
-                outerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("op")/3**.5,
-                                                             orientation='x')
+                innerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("ip")/3**.5, orientation='x', origin=origin)
+                outerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("op")/3**.5, orientation='x', origin=origin)
                 region = +bottomPlane & -topPlane & ~innerHexPrism & outerHexPrism
                 return region
 
             # Rectangle
             if isinstance(component, basicShapes.Rectangle):
-                innerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthInner"),
-                                                                height=component.getDimension("lengthInner")) # Check that width/height aren't flipped
-                outerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthOuter"),
-                                                                height=component.getDimension("lengthOuter"))
+                innerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthInner"), height=component.getDimension("lengthInner"), origin=origin) # Check that width/height aren't flipped
+                outerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthOuter"), height=component.getDimension("lengthOuter"), origin=origin)
                 region = +bottomPlane & -topPlane & ~innerRectPrism & outerRectPrism
                 return region
 
@@ -164,25 +161,27 @@ class OpenMCWriter:
         plotColors = dict()
         colorLookup = {"HT9": "steelblue",
                        "UZr": "green",
+                       "UO2": "green",
+                       "UraniumOxide": "green",
                        "Sodium": "antiquewhite",
-                       "B4C": "black"}
+                       "Custom": "purple",
+                       "B4C": "black",
+                       "SaturatedWater": "blue"}
+
+        numRings = core.numRings
+        boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type='vacuum')
+        boundingCellTopPlane = openmc.ZPlane(z0=max([assembly.getHeight() for assembly in core]), boundary_type='vacuum')
 
         if core.geomType == armi.reactor.geometry.GeomType.HEX:
 
-            numRings = core.numRings
             boundingCylinderRadius = core.getCoreRadius()
             boundingCylinder = openmc.ZCylinder(r=boundingCylinderRadius, boundary_type='vacuum')
 
             if core.symmetry.domain==armi.reactor.geometry.DomainType.FULL_CORE:
-                boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type='vacuum')
-                boundingCellTopPlane = openmc.ZPlane(z0=max([assembly.getHeight() for assembly in core]), boundary_type='vacuum')
                 boundingCellRegion = -boundingCylinder & +boundingCellBottomPlane & -boundingCellTopPlane
 
             if core.symmetry.domain==armi.reactor.geometry.DomainType.THIRD_CORE:
                 armi.reactor.converters.geometryConverters.EdgeAssemblyChanger().addEdgeAssemblies(core)
-                boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type='vacuum')
-                boundingCellTopPlane = openmc.ZPlane(z0=max([assembly.getHeight() for assembly in core]), boundary_type='vacuum')
-                
                 periodicPlane0 = openmc.Plane(a=0.0,b=1.0,c=0.0,d=0.0)
                 periodicPlane1 = openmc.Plane(a=3.0**.5,b=1.0,c=0.0,d=0.0)
 
@@ -200,8 +199,26 @@ class OpenMCWriter:
 
             # Create blank list of assembly universes for the lattice - we will fill in universes individually later
             emptyUniverse = openmc.Universe(cells=[emptyCell])
-            assemblyRings = buildRings(numRings, emptyUniverse)
+            assemblyLatticeIndices = buildRings(numRings, emptyUniverse)
 
+        elif core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
+            boundingCylinderRadius = core.getAssemblyPitch()[0]*core.numRings*2**.5
+            boundingCylinder = openmc.ZCylinder(r=boundingCylinderRadius, boundary_type='vacuum')
+
+            if core.symmetry.domain==armi.reactor.geometry.DomainType.QUARTER_CORE:
+                periodicPlane0 = openmc.Plane(a=0.0,b=1.0,c=0.0,d=0.0)
+                periodicPlane1 = openmc.Plane(a=1.0,b=0.0,c=0.0,d=0.0)
+                periodicPlane0.boundary_type = 'periodic'
+                periodicPlane1.boundary_type = 'periodic'
+                boundingCellRegion = -boundingCylinder & +periodicPlane0 & +periodicPlane1 & +boundingCellBottomPlane & -boundingCellTopPlane
+
+            emptyCellRegion = -boundingCylinder & +boundingCellBottomPlane & -boundingCellTopPlane
+            emptyCell = openmc.Cell(region = emptyCellRegion)
+
+            emptyUniverse = openmc.Universe(cells=[emptyCell])
+            assemblyLatticeIndices = []
+            for ring in range(numRings):
+                assemblyLatticeIndices.append([emptyUniverse]*numRings)
         else:
             raise TypeError("Unsupported geometry type")
 
@@ -225,16 +242,26 @@ class OpenMCWriter:
 
                 blockWithoutHelices = blendHelixComponentsIntoCoolant(block)
 
+                blockHasDerivedShapeComponent = any([isinstance(component, armi.reactor.components.DerivedShape) for component in blockWithoutHelices])
                 # Get DerivedShape component. We need to set its region last
-                derivedShapeComponent = [component for component in blockWithoutHelices if isinstance(component, armi.reactor.components.DerivedShape)][0]
-                derivedShapeComponentMaterial = buildComponentMaterial(derivedShapeComponent)
-                if derivedShapeComponentMaterial is not None:
-                    materials.append(derivedShapeComponentMaterial)
-                    plotColors[derivedShapeComponentMaterial.id] = colorLookup[derivedShapeComponent.material.name]
-                blockMinusDerivedShape = [component for component in blockWithoutHelices if not isinstance(component, armi.reactor.components.DerivedShape)]
+                if blockHasDerivedShapeComponent:
+                    derivedShapeComponent = [component for component in blockWithoutHelices if isinstance(component, armi.reactor.components.DerivedShape)][0]
+                    derivedShapeComponentMaterial = buildComponentMaterial(derivedShapeComponent)
+                    if derivedShapeComponentMaterial is not None:
+                        materials.append(derivedShapeComponentMaterial)
+                        plotColors[derivedShapeComponentMaterial.id] = colorLookup[derivedShapeComponent.material.name]
+                    blockMinusDerivedShape = [component for component in blockWithoutHelices if not isinstance(component, armi.reactor.components.DerivedShape)]
+                else:
+                    blockMinusDerivedShape = blockWithoutHelices
+                    derivedShapeComponentMaterial = None
 
                 componentCellsInBlock = []
                 # Divide all components into groups with same mult
+                """
+                Better way to get multGroups:
+                mults = {c.getDimension("mult") for c in blockMinusDerivedShape.iterComponents()}
+                """
+                
                 multGroups = dict()
                 for component in blockMinusDerivedShape:
                     mult = int(component.getDimension("mult"))
@@ -243,19 +270,37 @@ class OpenMCWriter:
                     multGroups[mult].append(component)
 
                 # If any components have mult>1, we need a cell filled with a lattice of them
-                if len(multGroups)>1:
+                if len(multGroups)==2:
+                    if block.hasPinPitch():
+                        latticePitch = block.getPinPitch()
+                    else:
+                        #print("[[component.getBoundingCircleOuterDiameter() for component in multGroups[multGroup]] for multGroup in multGroups if multGroup!=1]: " + str(max([[component.getBoundingCircleOuterDiameter() for component in multGroups[multGroup]] for multGroup in multGroups if multGroup!=1])))
+                        latticePitch = 1.2*max([[component.getBoundingCircleOuterDiameter() for component in multGroups[multGroup]] for multGroup in multGroups if multGroup!=1])[0]
+
+                    if core.geomType == armi.reactor.geometry.GeomType.HEX:
+                        totalSlots = [mult for mult in multGroups if mult>1][0]
+
+                        # Determine number of rings -> solve mult=1+6*(nRings-1)(nRings)/2
+                        nRings = math.ceil(.5*(1+(1+4/3*(totalSlots-1))**.5))
+                        blockLattice = openmc.HexLattice()
+                        blockLattice.pitch = [latticePitch]
+                        blockLattice.orientation = 'x'
+                        blockLattice.center = (0,0)
+                        blockLatticeIndices = buildRings(nRings, emptyUniverse)
+
+                    elif core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
+                        boundingIndices = block.spatialGrid.getIndexBounds()
+                        blockLatticeIndicesOffset = (boundingIndices[0][0],boundingIndices[1][0])
+                        blockLattice = openmc.RectLattice()
+                        blockLattice.pitch = latticePitch
+                        blockLattice.lower_left = (latticePitch[0]*boundingIndices[0][0],latticePitch[1]*boundingIndices[1][0])
+                        blockLatticeIndices = []
+                        for ring in range(boundingIndices[1][1]-boundingIndices[1][0]-1):
+                            blockLatticeIndices.append([emptyUniverse]*(boundingIndices[0][1]-boundingIndices[0][0]-1))
+
                     for mult in multGroups:
                         if mult>1:
-                            # Determine number of rings -> solve mult=1+6*(nRings-1)(nRings)/2
-                            nRings = math.ceil(.5*(1+(1+4/3*(mult-1))**.5))
-                            # NOTE: Currently supporting only 1 multGroup with mult>1
-                            # NOTE: Need better latticePitch
-                            if block.hasPinPitch():
-                                latticePitch = block.getPinPitch()
-                            else:
-                               latticePitch = 1.2*max([component.getBoundingCircleOuterDiameter() for component in multGroups[mult]])
                             componentCellsInMultGroupUniverse = []
-
                             for component in multGroups[mult]:
                                 componentMaterial = buildComponentMaterial(component)
                                 cell = openmc.Cell(name=component.getName(),
@@ -265,20 +310,35 @@ class OpenMCWriter:
                                     materials.append(componentMaterial)
                                     plotColors[componentMaterial.id] = colorLookup[component.material.name]
                                 componentCellsInMultGroupUniverse.append(cell)
-                            # Fill unused space in lattice with derivedShapeComponentMaterial
-                            derivedShapeComponentLatticeCell = openmc.Cell(name=derivedShapeComponent.getName(),
-                                                                    fill=derivedShapeComponentMaterial,
-                                                                    region=~openmc.Union([cell.region for cell in componentCellsInMultGroupUniverse]) & +blockBottomPlane & -blockTopPlane)
-                            componentCellsInMultGroupUniverse.append(derivedShapeComponentLatticeCell)
+                            if blockHasDerivedShapeComponent:
+                                # Fill unused space in lattice with derivedShapeComponentMaterial
+                                derivedShapeComponentLatticeCell = openmc.Cell(name=derivedShapeComponent.getName(),
+                                                                               fill=derivedShapeComponentMaterial,
+                                                                               region=~openmc.Union([cell.region for cell in componentCellsInMultGroupUniverse]) & +blockBottomPlane & -blockTopPlane)
+                                componentCellsInMultGroupUniverse.append(derivedShapeComponentLatticeCell)
+
                             multGroupUniverse = openmc.Universe(name="multGroup"+str(mult), cells=componentCellsInMultGroupUniverse)
-                    # Set blockLattice
-                    blockLattice = openmc.HexLattice()
-                    blockLattice.pitch = [latticePitch]
-                    blockLattice.orientation = 'x'
-                    blockLattice.center = (0,0)
-                    blockLatticeRings = buildRings(nRings, multGroupUniverse)
-                    blockLatticeRings.reverse()
-                    blockLattice.universes = blockLatticeRings
+
+                            """if spatialLocator is a multiIndexLocation, use it. Otherwise, assume all blockLatticeUniverses are multGroupUniverse"""
+                            multGroupIndices = multGroups[mult][0].spatialLocator
+                            if not isinstance(multGroupIndices, armi.reactor.grids.MultiIndexLocation):
+                                # Assume every universe in blockLattice is a multGroupUniverse
+                                for rowIndex, row in enumerate(blockLatticeIndices):
+                                    for colIndex in range(len(row)):
+                                        blockLatticeIndices[rowIndex][colIndex] = multGroupUniverse
+                            else:
+                                if core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
+                                    for location in multGroupIndices:
+                                        blockLatticeIndices[location[0]][location[1]] = multGroupUniverse
+                                if core.geomType == armi.reactor.geometry.GeomType.HEX:
+                                    for location in multGroupIndices:
+                                        ringIndices = cartesianToRing(location[0:2])
+                                        blockLatticeIndices[ringIndices[0]][ringIndices[1]] = multGroupUniverse
+
+                    if core.geomType == armi.reactor.geometry.GeomType.HEX:
+                        blockLatticeIndices.reverse()
+                    blockLattice.universes = blockLatticeIndices
+
                     blockLatticeOuterCell = openmc.Cell(region=+blockBottomPlane & -blockTopPlane & -boundingCylinder,
                                                         fill=derivedShapeComponentMaterial)
                     blockLatticeOuterUniverse = openmc.Universe(cells=[blockLatticeOuterCell])
@@ -300,25 +360,52 @@ class OpenMCWriter:
                     else:
                         raise NotImplementedError("Shape type not supported yet")
                     blockLatticeCell = openmc.Cell(name="blockLattice",
-                                                   fill = blockLattice,
-                                                   region = blockLatticeCellRegion)
+                                                       fill = blockLattice,
+                                                       region = blockLatticeCellRegion)
                     componentCellsInBlock.append(blockLatticeCell)
 
-                for component in multGroups[1]:
+                    remainingComponents = multGroups[1]
+                else:
+                    remainingComponents = [component for component in blockMinusDerivedShape]
+
+                for component in remainingComponents:
                     componentMaterial = buildComponentMaterial(component)
-                    cell = openmc.Cell(name=component.getName(),
-                                       fill=componentMaterial,
-                                       region=buildCellRegion(component, bottomPlane=blockBottomPlane, topPlane=blockTopPlane))
+
+                    if component.getDimension("mult")==1:
+                        cell = openmc.Cell(name=component.getName(),
+                                           fill=componentMaterial,
+                                           region=buildCellRegion(component, bottomPlane=blockBottomPlane, topPlane=blockTopPlane))
+                    else:
+                        if block.hasPinPitch():
+                            latticePitch = block.getPinPitch()
+                        else:
+                            latticePitch = 1.2*max([component.getBoundingCircleOuterDiameter() for component in remainingComponents if component.getDimension("mult")!=1])
+
+                        cellRegions = []
+                        for location in component.spatialLocator:
+                            if core.geomType == armi.reactor.geometry.GeomType.HEX:
+                                origin = (location[0]*latticePitch+location[1]*.5*latticePitch, location[1]*3**.5*latticePitch)
+                            elif core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
+                                origin = (location[0]*latticePitch[0], location[1]*latticePitch[1])
+                            else:
+                                raise TypeError("Unsupported geometry type")
+
+                            cellRegions.append(buildCellRegion(component, bottomPlane=blockBottomPlane, topPlane=blockTopPlane, origin=origin))
+                        cell = openmc.Cell(name=component.getName(),
+                                           fill=componentMaterial,
+                                           region=openmc.Union(cellRegions))
+
                     if componentMaterial is not None:
                         materials.append(componentMaterial)
                         plotColors[componentMaterial.id] = colorLookup[component.material.name]
                     componentCellsInBlock.append(cell)
 
-                # Set region for DerivedShape component - there should be a max of one per block
-                derivedShapeComponentCell = openmc.Cell(name=derivedShapeComponent.getName(),
-                                                        fill = derivedShapeComponentMaterial,
-                                                        region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]) & +blockBottomPlane & -blockTopPlane)
-                componentCellsInBlock.append(derivedShapeComponentCell)
+                if blockHasDerivedShapeComponent:
+                    # Set region for DerivedShape component - there should be a max of one per block
+                    derivedShapeComponentCell = openmc.Cell(name=derivedShapeComponent.getName(),
+                                                            fill = derivedShapeComponentMaterial,
+                                                            region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]) & +blockBottomPlane & -blockTopPlane)
+                    componentCellsInBlock.append(derivedShapeComponentCell)
 
                 componentCellsInAssembly += componentCellsInBlock
             assemblyUniverse.add_cells(componentCellsInAssembly)
@@ -326,20 +413,32 @@ class OpenMCWriter:
             # Place the assembly in the correct place in the core
             if core.geomType == armi.reactor.geometry.GeomType.HEX:
                 ringIndices = cartesianToRing(assembly.spatialLocator.getCompleteIndices()[0:2])
-                assemblyRings[ringIndices[0]][ringIndices[1]] = assemblyUniverse
+                assemblyLatticeIndices[ringIndices[0]][ringIndices[1]] = assemblyUniverse
+            elif core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
+                spatialIndices = assembly.spatialLocator.getCompleteIndices()
+                assemblyLatticeIndices[spatialIndices[0]][spatialIndices[1]] = assemblyUniverse
             else:
                 raise TypeError("Unsupported geometry type")
 
         # Create core lattice
         if core.geomType == armi.reactor.geometry.GeomType.HEX:
             lattice = openmc.HexLattice()
-            lattice.pitch = [core.getAssemblyPitch()+0.0001]
             lattice.center = (0,0)
-            assemblyRings.reverse()
-            lattice.universes = assemblyRings
-            lattice.outer = emptyUniverse
+
+            lattice.pitch = [core.getAssemblyPitch()+0.0001]
+        elif core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
+            lattice = openmc.RectLattice()
+            if core.symmetry.domain==armi.reactor.geometry.DomainType.QUARTER_CORE:
+                lattice.lower_left = (0.0, 0.0)
+            else:
+                lattice.lower_left = (-core.getAssemblyPitch()[0]*(core.numRings/2),-core.getAssemblyPitch()[1]*(core.numRings/2))
+            lattice.pitch = [p for p in core.getAssemblyPitch()]
         else:
             raise TypeError("Unsupported geometry type")
+
+        assemblyLatticeIndices.reverse()
+        lattice.universes = assemblyLatticeIndices
+        lattice.outer = emptyUniverse
 
         # Create root universe
         rootCell = openmc.Cell(name="rootCell", fill=lattice, region = boundingCellRegion)
@@ -369,18 +468,21 @@ class OpenMCWriter:
         """Write the OpenMC settings input file."""
         settings = openmc.Settings()
         settings.run_mode = 'eigenvalue'
-        boundingCyliderRadius = self.r.core.getCoreRadius()
-        point = openmc.stats.Box(lower_left=(-boundingCyliderRadius,-boundingCyliderRadius,0.0), upper_right=(boundingCyliderRadius,boundingCyliderRadius,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
+        if self.r.core.geomType == armi.reactor.geometry.GeomType.HEX:
+            boundingCylinderRadius = self.r.core.getCoreRadius()
+        elif self.r.core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
+            boundingCylinderRadius = self.r.core.getAssemblyPitch()[0]*self.r.core.numRings*2**.5
+        point = openmc.stats.Box(lower_left=(-boundingCylinderRadius,-boundingCylinderRadius,0.0), upper_right=(boundingCylinderRadius,boundingCylinderRadius,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
         settings.source = openmc.Source(space=point)
-        settings.batches = 40
+        settings.batches = 50
         settings.inactive = 10
-        settings.particles = 100000
+        settings.particles = 10000
         settings.generations_per_batch = 1
         settings.temperature = {'method': 'interpolation', 'default': 350.0}
         settings.output = {'tallies': True, 'summary': True}
         settings.verbosity = 7
         entropyMesh = openmc.RegularMesh()
-        bbWidth = boundingCyliderRadius
+        bbWidth = boundingCylinderRadius
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         entropyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         entropyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
@@ -391,25 +493,28 @@ class OpenMCWriter:
     def writeTallies(self):
         """Write the OpenMC tallies input file."""
         tallies = openmc.Tallies()
-        
+
+        if self.r.core.geomType == armi.reactor.geometry.GeomType.HEX:
+            bbWidth = self.r.core.getCoreRadius()
+        elif self.r.core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
+            bbWidth = self.r.core.getAssemblyPitch()[0]*self.r.core.numRings
+
         # Fission tally
         fissionTally = openmc.Tally()
         fissionTally.scores = ['fission']
         fissionTally.nuclides = ['U235', 'U238']
         fissionTallyMesh = openmc.RegularMesh()
-        bbWidth = self.r.core.getCoreRadius()
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fissionTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fissionTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
         fissionTallyMesh.dimension = (1000, 1000, 1)
         fissionTally.filters = [openmc.MeshFilter(mesh=fissionTallyMesh)]
         tallies.append(fissionTally)
-        
+
         # Multigroup Flux tally
         fluxTally = openmc.Tally()
         fluxTally.scores = ['flux']
         fluxTallyMesh = openmc.RegularMesh()
-        bbWidth = self.r.core.getCoreRadius()
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
@@ -420,18 +525,17 @@ class OpenMCWriter:
         fluxTallyEnergyFilter = openmc.EnergyFilter(energyGroupStructure)
         fluxTally.filters = [fluxTallyEnergyFilter, openmc.MeshFilter(mesh=fluxTallyMesh)]
         tallies.append(fluxTally)
-        
+
         # Power tally
         powerTally = openmc.Tally()
         powerTally.scores = ['heating']
         powerTallyMesh = openmc.RegularMesh()
-        bbWidth = self.r.core.getCoreRadius()
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         powerTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         powerTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
         powerTallyMesh.dimension = (1000, 1000, 1)
         powerTally.filters = [openmc.MeshFilter(mesh=powerTallyMesh)]
         tallies.append(powerTally)
-        
+
         tallies.export_to_xml()
 
