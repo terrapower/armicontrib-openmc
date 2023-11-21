@@ -43,6 +43,12 @@ class OpenMCWriter:
         self.r = reactor
         self.options = options
 
+    def write(self):
+        """Wrapper that writes all OpenMC input files"""
+        self.writeGeometry()
+        self.writeSettings()
+        self.writeTallies()
+
     def writeGeometry(self):
         """Write the openmc geometry, materials, and plots input file."""
 
@@ -154,6 +160,7 @@ class OpenMCWriter:
                     componentMaterial.add_nuclide(nuclideGNDSName, componentNuclideDensities[i]/totalComponentNuclideDensity, 'ao')
             return componentMaterial
 
+        print("Writing geometry, materials, and plots...")
         core = self.r.core
 
         materials = openmc.Materials()
@@ -224,7 +231,6 @@ class OpenMCWriter:
 
         for assembly in core:
             # Write a universe for each assembly
-            print("Working on assembly " + str(assembly.getName()))
             assemblyUniverse = openmc.Universe(name=assembly.name)
 
             # Create ZPlanes between blocks
@@ -459,13 +465,13 @@ class OpenMCWriter:
         plot.colors = plotColors
         plots = openmc.Plots([plot])
 
-        print("Exporting to xml...")
         materials.export_to_xml()
         plots.export_to_xml()
         geom.export_to_xml()
 
     def writeSettings(self):
         """Write the OpenMC settings input file."""
+        print("Writing settings...")
         settings = openmc.Settings()
         settings.run_mode = 'eigenvalue'
         if self.r.core.geomType == armi.reactor.geometry.GeomType.HEX:
@@ -473,7 +479,7 @@ class OpenMCWriter:
         elif self.r.core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
             boundingCylinderRadius = self.r.core.getAssemblyPitch()[0]*self.r.core.numRings*2**.5
         point = openmc.stats.Box(lower_left=(-boundingCylinderRadius,-boundingCylinderRadius,0.0), upper_right=(boundingCylinderRadius,boundingCylinderRadius,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
-        settings.source = openmc.Source(space=point)
+        settings.source = openmc.IndependentSource(space=point)
         settings.batches = 50
         settings.inactive = 10
         settings.particles = 10000
@@ -492,6 +498,7 @@ class OpenMCWriter:
 
     def writeTallies(self):
         """Write the OpenMC tallies input file."""
+        print("Writing tallies...")
         tallies = openmc.Tallies()
 
         if self.r.core.geomType == armi.reactor.geometry.GeomType.HEX:

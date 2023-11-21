@@ -33,7 +33,7 @@ armi.physics.neutronics.globalFlux.globalFluxInterface.GlobalFluxExecuter : ARMI
 
 ~armicontrib.armiopenmc.executionOptions.OpenMCOptions : Options that control the behavior of the Executer and its components.
 
-~armicontrib.dif3d.schedulers.OpenMCCoreEvaluation : One particular client of this code
+~armicontrib.armiopenmc.schedulers.OpenMCCoreEvaluation : One particular client of this code
 that runs OpenMC on a core.
 """
 
@@ -60,7 +60,7 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
 
     Parameters
     ----------
-    options: executionOptions.Dif3dOptions
+    options: executionOptions.OpenMCOptions
         run settings
     armiObj : composite.ArmiObject
         The object representing the scope of the OpenMC run (e.g. the Core or SFP, etc.)
@@ -80,7 +80,7 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
         Actually just builds the OpenMC model via the OpenMC API for now.
         """
         writer = inputWriters.OpenMCWriter(self.r, self.options)
-        writer.write(None)
+        writer.write()
 
         # TODO: maybe optionally write the openmc model to xml
         # with open(self.options.inputFile, "w") as inp:
@@ -92,15 +92,15 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
         Execute OpenMC on an existing input model. Produce output files.
         """
         globalFluxInterface.GlobalFluxExecuter._execute(self)
-        print("SKIPPING")
-        return True
 
         if self.options.executablePath is None:
             raise ValueError(
                 f"Cannot find executable at {self.options.executablePath}. " f"Update run settings."
             )
-        with open(self.options.outputFile, "w") as outF:
-            openmc.run()
+        openmc.lib.init()
+        openmc.lib.run()
+        openmc.statepoint_write(filename=self.options.outputFile)
+        openmc.lib.finalize()
 
         return True
 
