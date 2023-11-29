@@ -374,6 +374,21 @@ class OpenMCWriter:
                 else:
                     remainingComponents = [component for component in blockMinusDerivedShape]
 
+                # If component cell surfaces are perfectly coincident with lattice boundaries, it's possible for a particle to get lost by hitting a corner just right.
+                # Fix by adding a buffer to the outside of the largest component (e.g. intercoolant). Does not change effective geometry in the simulation.
+                # This code should be migrated to proper plugin geometryTransformations because we do not undo this transformation anywhere.
+                remainingComponentOuterDiameters = [component.getBoundingCircleOuterDiameter() for component in remainingComponents]
+                largestRemainingComponent = remainingComponents[max(range(len(remainingComponentOuterDiameters)), key=remainingComponentOuterDiameters.__getitem__)]
+                if isinstance(largestRemainingComponent, basicShapes.Circle):
+                    largestRemainingComponent.setDimension("od",largestRemainingComponent.getDimension("od")+.01)
+                elif isinstance(largestRemainingComponent, basicShapes.Hexagon):
+                    largestRemainingComponent.setDimension("op",largestRemainingComponent.getDimension("op")+.01)
+                elif isinstance(largestRemainingComponent, basicShapes.Rectangle):
+                    largestRemainingComponent.setDimension("widthOuter",largestRemainingComponent.getDimension("widthOuter")+.01)
+                    largestRemainingComponent.setDimension("widthInner",largestRemainingComponent.getDimension("widthInner")+.01)
+                else:
+                    raise NotImplementedError("Shape type not supported yet")
+
                 for component in remainingComponents:
                     componentMaterial = buildComponentMaterial(component)
 
@@ -412,6 +427,11 @@ class OpenMCWriter:
                                                             fill = derivedShapeComponentMaterial,
                                                             region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]) & +blockBottomPlane & -blockTopPlane)
                     componentCellsInBlock.append(derivedShapeComponentCell)
+                else:
+                    # If there's no DerivedShape component, add an empty cell in unoccupied region in case ComponentCellsInBlock doesn't fill its assemblyLattice cell
+                    emptyComponentCell = openmc.Cell(name='emptyComponent',
+                                                          region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]) & +blockBottomPlane & -blockTopPlane)
+                    componentCellsInBlock.append(emptyComponentCell)
 
                 componentCellsInAssembly += componentCellsInBlock
             assemblyUniverse.add_cells(componentCellsInAssembly)
@@ -431,7 +451,7 @@ class OpenMCWriter:
             lattice = openmc.HexLattice()
             lattice.center = (0,0)
 
-            lattice.pitch = [core.getAssemblyPitch()+0.0001]
+            lattice.pitch = [core.getAssemblyPitch()]
         elif core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
             lattice = openmc.RectLattice()
             if core.symmetry.domain==armi.reactor.geometry.DomainType.QUARTER_CORE:
