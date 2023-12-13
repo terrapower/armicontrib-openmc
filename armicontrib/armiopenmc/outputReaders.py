@@ -27,6 +27,8 @@ import os
 
 import numpy as np
 
+import openmc
+
 from armi.reactor import reactors
 from armi import runLog
 
@@ -54,23 +56,9 @@ class OpenMCReader:
         """
         self.opts = options
         self.r: reactors.Reactor = None
-        self._check()
-
-    def _check(self):
-        """
-        Check current directory for valid output files.
-
-        Also check convergence flag and warn if not converged.
-        """
-        if not os.path.exists("OpenMC"):
+        if not os.path.exists(self.opts.outputFile):
             raise RuntimeError("No valid OpenMC output found. Check OpenMC stdout for errors.")
-        self._openmcData = openmcFile.OpenMCStream.readBinary(openmcFile.OpenMC)
-        runLog.info("Found OpenMC output with:\n\t" + "\n\t".join(self._openmcData.makeSummary()))
-
-        if self._openmcData.convergence != openmcFile.Convergence.CONVERGED:
-            runLog.warning(
-                f"OpenMC run did not converge. Convergence state is {self._openmcData.convergence}."
-            )
+        self.sp = openmc.StatePoint(self.opts.outputFile)
 
     def apply(self, reactor: reactors.Reactor):
         """
@@ -79,17 +67,51 @@ class OpenMCReader:
         Generally, the armiObject is the Case's Reactor object.
         """
         self.r = reactor
-        self._readGeometry()
-        self._readKeff()
-        self._readPower()
+        self.nf = self.getNormalizationFactor()
+        #self._readGeometry()
+        #self._readKeff()
+        #self._readPower()
         self._readFluxes()
-        self._readPeakFluxes()
+        #self._readPeakFluxes()
 
-        if self.opts.detailedDb is not None:
-            with Database3(self.opts.detailedDb, "w") as dbo:
-                dbo.writeInputsToDB(self.opts.csObject)
-                dbo.writeToDB(self.r)
+        #if self.opts.detailedDb is not None:
+        #    with Database3(self.opts.detailedDb, "w") as dbo:
+        #        dbo.writeInputsToDB(self.opts.csObject)
+        #        dbo.writeToDB(self.r)
 
     def getKeff(self):
         """Return keff directly from output files without applying to reactor."""
-        return self._openmcData.keff
+        return self.sp.keff.nominal_value
+
+    def getNormalizationFactor(self):
+        """
+        OpenMC returns tallies in units per source particle.
+        Normalize to usable units with heating tally and known reactor power.
+        """
+        totalHeatingTally = sum(self.sp.get_tally(scores=['heating-local']).mean)*1.602e-19 #[J/(sourceParticle)]
+        print("self.r: " + str(self.r))
+        print("self.r.o: " + str(self.r.o))
+        #print(": " + str())
+        if self.r is None:
+            raise ValueError("OpenMCReader.r must be set before normalization factor can be calculated.")
+        power = self.opts.power  # [J/s]
+        normalizationFactor = power/totalHeatingTally  # [sourceParticle/s]
+        return normalizationFactor
+
+    def _readFluxes(self):
+        """
+        Read fluxes from flux tally.
+        """
+        
+        fluxTally = self.sp.get_tally(scores=['flux'])
+        blockFilter = fluxTally.find_filter(openmc.CellFilter)
+        reshapedFluxTally = fluxTally.get_reshaped_data()
+        cells = openmc.Geometry.from_xml("geometry.xml").get_all_cells()
+
+        for i in range(len(reshapedFluxTally[:,0])):
+            cellNumber = blockFilter.bins[i]
+            blockName = cells[cellNumber].name
+            b = self.r.core.getBlockByName(blockName)
+            
+            setattr(b.p, "mgFlux", reshapedFluxTally[i,:]*self.nf)
+

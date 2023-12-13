@@ -35,26 +35,32 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.libDataFile = neutronics.ISOTXS
         self.label = label if label else "openmc"
         self.executablePath = None
+        self.nParticles = None
+        self.nBatches = None
+        self.nInactiveBatches = None
+        self.power = None
+        
         self.runDir = None
+        
         self.numberMeshPerEdge = 1
         self.neutronicsOutputsToSave = None
         self.xsLibraryName = None
         self.existingFixedSource = None
         self.bcCoefficient = None
         self.detailedDb: Optional[str] = None
-        # When writing the neutronics-mesh database, we need the actual case Settings
-        # object in order for that database to be complete and capable of being read.
-        # Storing the full cs object here seems contrary to the goal of Options classes
-        # to decouple Executers from raw Settings. However, here we need the **object**,
-        # rather than the settings that it contains. Future work to the ARMI framework
-        # may relax the need for case settings in a database file to support loading, in
-        # which case this would no longer be required.
         self.csObject: Optional[caseSettings.Settings] = None
+        
 
     def fromUserSettings(self, cs: caseSettings.Settings):
         """Set options from user settings"""
         globalFluxInterface.GlobalFluxOptions.fromUserSettings(self, cs)
+        self.executablePath = shutil.which(cs[settings.CONF_OPENMC_PATH])
+        self.nParticles = cs[settings.CONF_N_PARTICLES]
+        self.nBatches = cs[settings.CONF_N_BATCHES]
+        self.nInactiveBatches = cs[settings.CONF_N_INACTIVE]
         self.setRunDirFromCaseTitle(cs.caseTitle)
+        self.power = cs.getSetting("power").value
+        
         self.neutronicsOutputsToSave = cs[settings.CONF_NEUTRONICS_OUTPUTS_TO_SAVE]
         self.existingFixedSource = cs[gsettings.CONF_EXISTING_FIXED_SOURCE]
         self.epsFissionSourceAvg = cs[gsettings.CONF_EPS_FSAVG]
@@ -65,14 +71,20 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
     def fromReactor(self, reactor):
         """Set options from an ARMI composite to be modeled (often a ``Core``)"""
         globalFluxInterface.GlobalFluxOptions.fromReactor(self, reactor)
-        self.inputFile = f"{self.label}.inp"
-        self.outputFile = f"{self.label}.out"
+        self.inputFile = None #f"{self.label}.inp"
+        self.outputFile = None #f"{self.label}.out"
 
     def resolveDerivedOptions(self):
         """
         Set other options that are dependent on previous phases of loading options.
         """
         globalFluxInterface.GlobalFluxOptions.resolveDerivedOptions(self)
+        self.extraInputFiles.extend(["geometry.xml",
+                                     "materials.xml",
+                                     "settings.xml",
+                                     "tallies.xml",
+                                     "plots.xml"])
+        self.outputFile = "statepoint."+str(self.nBatches)+".h5"
         if self.existingFixedSource:
             self.extraInputFiles.append((self.existingFixedSource, self.existingFixedSource))
         if self.isRestart:

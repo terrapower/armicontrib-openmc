@@ -1,4 +1,4 @@
-# Copyright 2021 TerraPower, LLC
+# Copyright 2023 TerraPower, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,9 @@ import armi
 from armi import plugins
 
 
+from openmcdemo.cli import runFFTF
+
+
 class ARMIOpenMCApp(armi.apps.App):
     """App that adds only the OpenMC plugin for testing purposes."""
 
@@ -29,14 +32,25 @@ class ARMIOpenMCApp(armi.apps.App):
         from armicontrib.armiopenmc.plugin import OpenMCPlugin
 
         self._pm.register(OpenMCPlugin)
+        self._pm.register(OpenMCDemoPlugin)
 
     @property
     def splashText(self):
         return """
-     =================================
+     ==================================
      == ARMI-OpenMC Demo Application ==
-     =================================
+     ==================================
      ARMI Version: {}
 """.format(
             armi.__version__
         )
+
+class OpenMCDemoPlugin(plugins.ArmiPlugin):
+    """Plugin with OpenMC testing hooks"""
+    
+    @staticmethod
+    @plugins.HOOKIMPL
+    def defineEntryPoints():
+        return [
+            runFFTF.RunFFTF,
+        ]

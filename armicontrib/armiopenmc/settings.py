@@ -22,13 +22,14 @@ This module implements the :py:meth:`ArmiPlugin.defineSettings()
 settings that control OpenMC's behavior specifically, this provides new options to the
 ARMI built-in ``neutronicsKernel`` setting:
 
-    * "OpenMC": Enable OpenM .
+    * "OpenMC": Enable OpenMC.
 """
 import shutil
 
 from armi.physics.neutronics import settings as neutronicsSettings
 from armi.settings import setting
 from armi.operators import settingsValidation
+from armi.operators.settingsValidation import Query
 from armi.physics import neutronics
 
 
@@ -37,6 +38,10 @@ CONF_EPS_CYCLIC = "epsCyclic"
 CONF_EPS_NDENS = "epsNdens"
 CONF_NEUTRONICS_OUTPUTS_TO_SAVE = "neutronicsOutputsToSave"
 CONF_OPENMC_DB = "writeOpenMCDb"
+CONF_OPENMC_PATH = "OpenMCExePath"
+CONF_N_PARTICLES = "nParticles"
+CONF_N_BATCHES = "nBatches"
+CONF_N_INACTIVE = "nInactiveBatches"
 
 
 CONF_OPT_OPENMC = "OpenMC"
@@ -77,11 +82,47 @@ def defineSettings():
             ),
             options=["", "Input/Output", "Flux files", "Restart files", "All"],
         ),
+        setting.Setting(
+            CONF_OPENMC_PATH,
+            default="openmc",
+            label="OpenMC path",
+            description="The path to the OpenMC executable",
+            options=[],
+        ),
+        setting.Setting(
+            CONF_N_BATCHES,
+            default = 100,
+            label = "Number of batches",
+            description=("Defines number of batches to be run in an OpenMC simulation.")
+        ),
+        setting.Setting(
+            CONF_N_INACTIVE,
+            default = 10,
+            label = "Number of inactive batches",
+            description=("Defines number of inactive batches to run before recording results"
+            "in an OpenMC simulation."
+            )
+        ),
+        setting.Setting(
+            CONF_N_PARTICLES,
+            default = 1000,
+            label = "Number of particles per generation",
+            description=("Defines number of particles to be simulated per generation"
+            "in OpenMC."
+            )
+        )
     ]
     return settings
 
 
 def defineSettingValidators(inspector):
     """Define OpenMC-related setting validations."""
-    queries = []
+    queries = [
+        Query(
+            lambda: inspector.cs[CONF_N_PARTICLES] < 0,
+            "The number of particles is less than 0.",
+            "",
+            inspector.NO_ACTION,
+        )
+    ]
     return queries

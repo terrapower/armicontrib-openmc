@@ -21,8 +21,10 @@ Components for writing OpenMC inputs from ARMI models.
 """
 import warnings
 import math
+import os
 
 import armi
+from armi import runLog
 from armi.nucDirectory import nuclideBases
 from armi.utils import hexagon
 from armi.reactor.converters.blockConverters import MultipleComponentMerger
@@ -42,6 +44,8 @@ class OpenMCWriter:
 
         self.r = reactor
         self.options = options
+
+        self.blockFilterCells = None
 
     def write(self):
         """Wrapper that writes all OpenMC input files"""
@@ -129,6 +133,10 @@ class OpenMCWriter:
                     else:
                         pos = 6*ring*4/6+x
 
+            # OpenMC's ring system starts at the top and goes clockwise
+            lenRing = max([ring*6, 1])
+            pos = (lenRing+ring-pos)%lenRing
+            
             return [ring, int(pos)]
 
         def buildRings(numRings, universe):
@@ -160,7 +168,7 @@ class OpenMCWriter:
                     componentMaterial.add_nuclide(nuclideGNDSName, componentNuclideDensities[i]/totalComponentNuclideDensity, 'ao')
             return componentMaterial
 
-        print("Writing geometry, materials, and plots...")
+        runLog.info("Writing geometry, materials, and plots...")
         core = self.r.core
 
         materials = openmc.Materials()
@@ -229,6 +237,7 @@ class OpenMCWriter:
         else:
             raise TypeError("Unsupported geometry type")
 
+        self.blockFilterCells = []
         for assembly in core:
             # Write a universe for each assembly
             assemblyUniverse = openmc.Universe(name=assembly.name)
@@ -241,7 +250,7 @@ class OpenMCWriter:
                 ZPlanes.append(openmc.ZPlane(z0=z0, boundary_type='transmission'))
             ZPlanes[-1].boundary_type = 'vacuum' # Reset top plane boundary condition to vacuum
 
-            componentCellsInAssembly = []
+            blockCellsInAssembly = []
             for i, block in enumerate(assembly):
                 blockBottomPlane = ZPlanes[i]
                 blockTopPlane = ZPlanes[i+1]
@@ -280,7 +289,6 @@ class OpenMCWriter:
                     if block.hasPinPitch():
                         latticePitch = block.getPinPitch()
                     else:
-                        #print("[[component.getBoundingCircleOuterDiameter() for component in multGroups[multGroup]] for multGroup in multGroups if multGroup!=1]: " + str(max([[component.getBoundingCircleOuterDiameter() for component in multGroups[multGroup]] for multGroup in multGroups if multGroup!=1])))
                         latticePitch = 1.2*max([[component.getBoundingCircleOuterDiameter() for component in multGroups[multGroup]] for multGroup in multGroups if multGroup!=1])[0]
 
                     if core.geomType == armi.reactor.geometry.GeomType.HEX:
@@ -432,9 +440,14 @@ class OpenMCWriter:
                     emptyComponentCell = openmc.Cell(name='emptyComponent',
                                                           region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]) & +blockBottomPlane & -blockTopPlane)
                     componentCellsInBlock.append(emptyComponentCell)
+                blockUniverse = openmc.Universe(cells = componentCellsInBlock)
+                blockUniverseCell = openmc.Cell(name=block.getName(),
+                                                fill=blockUniverse,
+                                                region=openmc.Union([blockCell.region for blockCell in componentCellsInBlock]))
 
-                componentCellsInAssembly += componentCellsInBlock
-            assemblyUniverse.add_cells(componentCellsInAssembly)
+                blockCellsInAssembly.append(blockUniverseCell)
+                self.blockFilterCells.append(blockUniverseCell)
+            assemblyUniverse.add_cells(blockCellsInAssembly)
 
             # Place the assembly in the correct place in the core
             if core.geomType == armi.reactor.geometry.GeomType.HEX:
@@ -471,14 +484,14 @@ class OpenMCWriter:
         rootUniverse = openmc.Universe(cells=[rootCell])
 
         # Write geometry to xml
-        geom = openmc.Geometry(rootUniverse)
-        geom.merge_surfaces=True # merge redundant surfaces
+        geometry = openmc.Geometry(rootUniverse)
+        geometry.merge_surfaces=True # merge redundant surfaces
 
         # Write plots xml file
         plot = openmc.Plot()
         plot.basis = 'xy'
         plot.filename = self.r.getName()
-        plot.width = (boundingCylinderRadius, boundingCylinderRadius) #(self.r.core.getBoundingCircleOuterDiameter(), self.r.core.getBoundingCircleOuterDiameter())
+        plot.width = (boundingCylinderRadius, boundingCylinderRadius)
         plot.pixels = (4000, 4000)
         plot.origin = (0.0, 0.0, 20.0)
         plot.color_by = 'material'
@@ -487,38 +500,40 @@ class OpenMCWriter:
 
         materials.export_to_xml()
         plots.export_to_xml()
-        geom.export_to_xml()
+        geometry.export_to_xml()
 
     def writeSettings(self):
         """Write the OpenMC settings input file."""
-        print("Writing settings...")
+        runLog.info("Writing settings...")
         settings = openmc.Settings()
         settings.run_mode = 'eigenvalue'
+        bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         if self.r.core.geomType == armi.reactor.geometry.GeomType.HEX:
             boundingCylinderRadius = self.r.core.getCoreRadius()
         elif self.r.core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
             boundingCylinderRadius = self.r.core.getAssemblyPitch()[0]*self.r.core.numRings*2**.5
-        point = openmc.stats.Box(lower_left=(-boundingCylinderRadius,-boundingCylinderRadius,0.0), upper_right=(boundingCylinderRadius,boundingCylinderRadius,100.0)) #xyz=(0.0, 0.0, 20.0))#self.r.core[0].getHeight()/2))
+        point = openmc.stats.Box(lower_left=(-boundingCylinderRadius,-boundingCylinderRadius,0.0), 
+                                 upper_right=(boundingCylinderRadius,boundingCylinderRadius,bbHeight),
+                                 only_fissionable=True)
         settings.source = openmc.IndependentSource(space=point)
-        settings.batches = 50
-        settings.inactive = 10
-        settings.particles = 10000
+        settings.batches = self.options.nBatches
+        settings.inactive = self.options.nInactiveBatches
+        settings.particles = self.options.nParticles
         settings.generations_per_batch = 1
         settings.temperature = {'method': 'interpolation', 'default': 350.0}
         settings.output = {'tallies': True, 'summary': True}
         settings.verbosity = 7
         entropyMesh = openmc.RegularMesh()
         bbWidth = boundingCylinderRadius
-        bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         entropyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         entropyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        entropyMesh.dimension = (10, 10, 10)
+        entropyMesh.dimension = (20, 20, 20)
         settings.entropy_mesh = entropyMesh
         settings.export_to_xml()
 
     def writeTallies(self):
         """Write the OpenMC tallies input file."""
-        print("Writing tallies...")
+        runLog.info("Writing tallies...")
         tallies = openmc.Tallies()
 
         if self.r.core.geomType == armi.reactor.geometry.GeomType.HEX:
@@ -534,7 +549,7 @@ class OpenMCWriter:
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fissionTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fissionTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        fissionTallyMesh.dimension = (1000, 1000, 1)
+        fissionTallyMesh.dimension = (10, 10, 10)
         fissionTally.filters = [openmc.MeshFilter(mesh=fissionTallyMesh)]
         tallies.append(fissionTally)
 
@@ -545,22 +560,23 @@ class OpenMCWriter:
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        fluxTallyMesh.dimension = (1000, 1000, 1)
+        fluxTallyMesh.dimension = (50, 50, 50)
         energyGroupStructure = energyGroups.getGroupStructure("ANL33")
         energyGroupStructure.append(0.0)
         energyGroupStructure.reverse()
         fluxTallyEnergyFilter = openmc.EnergyFilter(energyGroupStructure)
-        fluxTally.filters = [fluxTallyEnergyFilter, openmc.MeshFilter(mesh=fluxTallyMesh)]
+        blockFilter = openmc.CellFilter(bins = self.blockFilterCells)
+        fluxTally.filters = [ blockFilter, fluxTallyEnergyFilter]
         tallies.append(fluxTally)
 
         # Power tally
         powerTally = openmc.Tally()
-        powerTally.scores = ['heating']
+        powerTally.scores = ['heating-local']
         powerTallyMesh = openmc.RegularMesh()
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         powerTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         powerTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        powerTallyMesh.dimension = (1000, 1000, 1)
+        powerTallyMesh.dimension = (50, 50, 50)
         powerTally.filters = [openmc.MeshFilter(mesh=powerTallyMesh)]
         tallies.append(powerTally)
 

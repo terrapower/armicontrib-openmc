@@ -37,6 +37,7 @@ armi.physics.neutronics.globalFlux.globalFluxInterface.GlobalFluxExecuter : ARMI
 that runs OpenMC on a core.
 """
 
+import os
 import subprocess
 
 from armi.utils import directoryChangers
@@ -49,6 +50,8 @@ from . import inputWriters
 from . import outputReaders
 from . import executionOptions
 from armi.utils import codeTiming
+
+import openmc.lib
 
 
 class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
@@ -82,10 +85,6 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
         writer = inputWriters.OpenMCWriter(self.r, self.options)
         writer.write()
 
-        # TODO: maybe optionally write the openmc model to xml
-        # with open(self.options.inputFile, "w") as inp:
-        #   writer.write(inp)
-
     @codeTiming.timed
     def _execute(self):
         """
@@ -97,10 +96,8 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
             raise ValueError(
                 f"Cannot find executable at {self.options.executablePath}. " f"Update run settings."
             )
-        openmc.lib.init()
-        openmc.lib.run()
-        openmc.statepoint_write(filename=self.options.outputFile)
-        openmc.lib.finalize()
+
+        openmc.run()
 
         return True
 
@@ -108,4 +105,5 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
     def _readOutput(self):
         """Read output."""
         reader = outputReaders.OpenMCReader(self.options)
+        reader.apply(self.r)
         return reader
