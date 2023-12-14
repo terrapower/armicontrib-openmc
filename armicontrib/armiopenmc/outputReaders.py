@@ -89,9 +89,6 @@ class OpenMCReader:
         Normalize to usable units with heating tally and known reactor power.
         """
         totalHeatingTally = sum(self.sp.get_tally(scores=['heating-local']).mean)*1.602e-19 #[J/(sourceParticle)]
-        print("self.r: " + str(self.r))
-        print("self.r.o: " + str(self.r.o))
-        #print(": " + str())
         if self.r is None:
             raise ValueError("OpenMCReader.r must be set before normalization factor can be calculated.")
         power = self.opts.power  # [J/s]

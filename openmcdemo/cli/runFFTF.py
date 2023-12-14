@@ -35,6 +35,10 @@ from armiopenmc.settings import (
     CONF_N_PARTICLES,
     CONF_N_BATCHES,
     CONF_N_INACTIVE,
+    CONF_TALLY_MESH_DIMENSION,
+    CONF_ENTROPY_MESH_DIMENSION,
+    CONF_ENERGY_GROUP_STRUCTURE,
+    CONF_OPENMC_VERBOSITY
 )
 
 
@@ -51,6 +55,10 @@ class RunFFTF(EntryPoint):
         self.createOptionFromSetting(CONF_N_PARTICLES)
         self.createOptionFromSetting(CONF_N_BATCHES)
         self.createOptionFromSetting(CONF_N_INACTIVE)
+        self.createOptionFromSetting(CONF_TALLY_MESH_DIMENSION)
+        self.createOptionFromSetting(CONF_ENTROPY_MESH_DIMENSION)
+        self.createOptionFromSetting(CONF_ENERGY_GROUP_STRUCTURE)
+        self.createOptionFromSetting(CONF_OPENMC_VERBOSITY)
         self.parser.add_argument(
             "--inputs-only",
             action="store_true",
@@ -103,4 +111,5 @@ class RunFFTF(EntryPoint):
         Analysis not yet implemented. For now, just print mgFlux from one block to verify it's in there.
         """
         print("blocks[460].p['mgFlux']: " + str(o.r.core.getBlocks()[460].p['mgFlux']))
+        print("sum(blocks[460].p['mgFlux']): " + str(sum(o.r.core.getBlocks()[460].p['mgFlux'])))
 

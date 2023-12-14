@@ -42,6 +42,10 @@ CONF_OPENMC_PATH = "OpenMCExePath"
 CONF_N_PARTICLES = "nParticles"
 CONF_N_BATCHES = "nBatches"
 CONF_N_INACTIVE = "nInactiveBatches"
+CONF_TALLY_MESH_DIMENSION = "tallyMeshDimension"
+CONF_ENTROPY_MESH_DIMENSION = "entropyMeshDimension"
+CONF_ENERGY_GROUP_STRUCTURE = "energyGroupStructure"
+CONF_OPENMC_VERBOSITY = "openmcVerbosity"
 
 
 CONF_OPT_OPENMC = "OpenMC"
@@ -109,6 +113,47 @@ def defineSettings():
             label = "Number of particles per generation",
             description=("Defines number of particles to be simulated per generation"
             "in OpenMC."
+            )
+        ),
+        setting.Setting(
+            CONF_TALLY_MESH_DIMENSION,
+            default = 10,
+            label = "Tally mesh dimension in OpenMC",
+            description=("Defines number of mesh cells in each dimension for fission and"
+            "heating tallies."
+            )
+        ),
+        setting.Setting(
+            CONF_ENTROPY_MESH_DIMENSION,
+            default = 10,
+            label = "Entropy mesh dimension in OpenMC",
+            description=("Defines number of mesh cells in each dimension for Shannon entropy"
+            "mesh. Used to measure source distribution convergence."
+            )
+        ),
+        setting.Setting(
+            CONF_ENERGY_GROUP_STRUCTURE,
+            default = "ARMI33",
+            label = "Energy group structure for multigroup flux tally",
+            description=("String containing the name of an ARMI energy group to use in the"
+            "multigroup flux tally. See armi/physics/neutronics/energyGroups.py for"
+            "valid group structure names."
+            )
+        ),
+        setting.Setting(
+            CONF_OPENMC_VERBOSITY,
+            default = 7,
+            label = "Verbosity of OpenMC output",
+            description=("OpenMC verbosity. From OpenMC documentation:"
+                         "1. don’t display any output"
+                         "2. only show OpenMC logo"
+                         "3. all of the above + headers"
+                         "4. all of the above + results"
+                         "5. all of the above + file I/O"
+                         "6. all of the above + timing statistics and initialization messages"
+                         "7. all of the above + k by generation"
+                         "9. all of the above + indicate when each particle starts"
+                         "10. all of the above + event information"
             )
         )
     ]

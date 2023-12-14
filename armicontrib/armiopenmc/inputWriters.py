@@ -522,12 +522,14 @@ class OpenMCWriter:
         settings.generations_per_batch = 1
         settings.temperature = {'method': 'interpolation', 'default': 350.0}
         settings.output = {'tallies': True, 'summary': True}
-        settings.verbosity = 7
+        settings.verbosity = self.options.openmcVerbosity
         entropyMesh = openmc.RegularMesh()
         bbWidth = boundingCylinderRadius
         entropyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         entropyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        entropyMesh.dimension = (20, 20, 20)
+        entropyMesh.dimension = (self.options.entropyMeshDimension,
+                                 self.options.entropyMeshDimension,
+                                 self.options.entropyMeshDimension)
         settings.entropy_mesh = entropyMesh
         settings.export_to_xml()
 
@@ -549,24 +551,26 @@ class OpenMCWriter:
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fissionTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fissionTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        fissionTallyMesh.dimension = (10, 10, 10)
+        fissionTallyMesh.dimension = (self.options.tallyMeshDimension,
+                                      self.options.tallyMeshDimension,
+                                      self.options.tallyMeshDimension)
         fissionTally.filters = [openmc.MeshFilter(mesh=fissionTallyMesh)]
         tallies.append(fissionTally)
 
         # Multigroup Flux tally
         fluxTally = openmc.Tally()
         fluxTally.scores = ['flux']
-        fluxTallyMesh = openmc.RegularMesh()
+        #fluxTallyMesh = openmc.RegularMesh()
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
-        fluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
-        fluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        fluxTallyMesh.dimension = (50, 50, 50)
-        energyGroupStructure = energyGroups.getGroupStructure("ANL33")
+        #fluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
+        #fluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
+        #fluxTallyMesh.dimension = (50, 50, 50)
+        energyGroupStructure = energyGroups.getGroupStructure(self.options.energyGroupStructure)
         energyGroupStructure.append(0.0)
         energyGroupStructure.reverse()
         fluxTallyEnergyFilter = openmc.EnergyFilter(energyGroupStructure)
         blockFilter = openmc.CellFilter(bins = self.blockFilterCells)
-        fluxTally.filters = [ blockFilter, fluxTallyEnergyFilter]
+        fluxTally.filters = [blockFilter, fluxTallyEnergyFilter]
         tallies.append(fluxTally)
 
         # Power tally
@@ -576,7 +580,9 @@ class OpenMCWriter:
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         powerTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         powerTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        powerTallyMesh.dimension = (50, 50, 50)
+        powerTallyMesh.dimension = (self.options.tallyMeshDimension,
+                                    self.options.tallyMeshDimension,
+                                    self.options.tallyMeshDimension)
         powerTally.filters = [openmc.MeshFilter(mesh=powerTallyMesh)]
         tallies.append(powerTally)
 
