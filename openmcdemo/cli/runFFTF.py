@@ -46,10 +46,10 @@ class RunFFTF(EntryPoint):
     """
     Use armiopenmc to simulate the Fast Flux Test Facility.
     """
-    
+
     name = "run-fftf"
     settingsArgument = None
-    
+
     def addOptions(self):
         self.createOptionFromSetting(CONF_OPENMC_PATH)
         self.createOptionFromSetting(CONF_N_PARTICLES)
@@ -85,7 +85,7 @@ class RunFFTF(EntryPoint):
         print("setting from _initSettings", cs[CONF_OPENMC_PATH])
 
         return cs
-        
+
     def invoke(self):
         if shutil.which(self.cs[CONF_OPENMC_PATH]) is None:
             runLog.error(
@@ -95,10 +95,9 @@ class RunFFTF(EntryPoint):
             )
             if not self.args.inputs_only:
                 sys.exit(1)
-        
+
         o = operators.factory(self.cs)
         o.r = reactors.loadFromCs(self.cs)
-        
 
         opts = executionOptions.OpenMCOptions()
         opts.fromReactor(o.r)

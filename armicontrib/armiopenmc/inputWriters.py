@@ -136,7 +136,6 @@ class OpenMCWriter:
             # OpenMC's ring system starts at the top and goes clockwise
             lenRing = max([ring*6, 1])
             pos = (lenRing+ring-pos)%lenRing
-            
             return [ring, int(pos)]
 
         def buildRings(numRings, universe):
@@ -276,7 +275,7 @@ class OpenMCWriter:
                 Better way to get multGroups:
                 mults = {c.getDimension("mult") for c in blockMinusDerivedShape.iterComponents()}
                 """
-                
+
                 multGroups = dict()
                 for component in blockMinusDerivedShape:
                     mult = int(component.getDimension("mult"))
@@ -527,9 +526,7 @@ class OpenMCWriter:
         bbWidth = boundingCylinderRadius
         entropyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         entropyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        entropyMesh.dimension = (self.options.entropyMeshDimension,
-                                 self.options.entropyMeshDimension,
-                                 self.options.entropyMeshDimension)
+        entropyMesh.dimension = parseMeshDimension(self.options.entropyMeshDimension)
         settings.entropy_mesh = entropyMesh
         settings.export_to_xml()
 
@@ -543,48 +540,64 @@ class OpenMCWriter:
         elif self.r.core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
             bbWidth = self.r.core.getAssemblyPitch()[0]*self.r.core.numRings
 
-        # Fission tally
-        fissionTally = openmc.Tally()
+        fissionTally = openmc.Tally(1, name="fission rate")
         fissionTally.scores = ['fission']
         fissionTally.nuclides = ['U235', 'U238']
         fissionTallyMesh = openmc.RegularMesh()
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fissionTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fissionTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        fissionTallyMesh.dimension = (self.options.tallyMeshDimension,
-                                      self.options.tallyMeshDimension,
-                                      self.options.tallyMeshDimension)
+        fissionTallyMesh.dimension = parseMeshDimension(self.options.tallyMeshDimension)
         fissionTally.filters = [openmc.MeshFilter(mesh=fissionTallyMesh)]
         tallies.append(fissionTally)
 
-        # Multigroup Flux tally
-        fluxTally = openmc.Tally()
-        fluxTally.scores = ['flux']
-        #fluxTallyMesh = openmc.RegularMesh()
-        bbHeight = max([assembly.getHeight() for assembly in self.r.core])
-        #fluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
-        #fluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        #fluxTallyMesh.dimension = (50, 50, 50)
-        energyGroupStructure = energyGroups.getGroupStructure(self.options.energyGroupStructure)
-        energyGroupStructure.append(0.0)
-        energyGroupStructure.reverse()
-        fluxTallyEnergyFilter = openmc.EnergyFilter(energyGroupStructure)
+        blockFluxTally = openmc.Tally(2, name="block filter multigroup flux")
+        blockFluxTally.scores = ['flux']
+        energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure(self.options.energyGroupStructure))
+        blockFluxTallyEnergyFilter = openmc.EnergyFilter(energyGroupStructure)
         blockFilter = openmc.CellFilter(bins = self.blockFilterCells)
-        fluxTally.filters = [blockFilter, fluxTallyEnergyFilter]
-        tallies.append(fluxTally)
+        blockFluxTally.filters = [blockFilter, blockFluxTallyEnergyFilter]
+        tallies.append(blockFluxTally)
 
-        # Power tally
-        powerTally = openmc.Tally()
+        meshFluxTally = openmc.Tally(3, name="mesh filter multigroup flux")
+        meshFluxTally.scores = ['flux']
+        meshFluxTallyMesh = openmc.RegularMesh()
+        bbHeight = max([assembly.getHeight() for assembly in self.r.core])
+        meshFluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
+        meshFluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
+        meshFluxTallyMesh.dimension = parseMeshDimension(self.options.tallyMeshDimension)
+        energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure(self.options.energyGroupStructure))
+        meshFluxTallyEnergyFilter = openmc.EnergyFilter(energyGroupStructure)
+        meshFilter = openmc.MeshFilter(mesh=meshFluxTallyMesh)
+        meshFluxTally.filters = [meshFilter, meshFluxTallyEnergyFilter]
+        tallies.append(meshFluxTally)
+
+        powerTally = openmc.Tally(4, name="power")
         powerTally.scores = ['heating-local']
         powerTallyMesh = openmc.RegularMesh()
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         powerTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         powerTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        powerTallyMesh.dimension = (self.options.tallyMeshDimension,
-                                    self.options.tallyMeshDimension,
-                                    self.options.tallyMeshDimension)
+        powerTallyMesh.dimension = parseMeshDimension(self.options.tallyMeshDimension)
         powerTally.filters = [openmc.MeshFilter(mesh=powerTallyMesh)]
         tallies.append(powerTally)
 
         tallies.export_to_xml()
+        
+def parseMeshDimension(meshDimension):
+    """Convert meshDimension option to a tuple for use in OpenMC"""
+    if isinstance(meshDimension, tuple):
+        return meshDimension
+    elif isinstance(meshDimension, list):
+        return tuple(meshDimension)
+    elif isinstance(meshDimension, int):
+        return (meshDimension, meshDimension, meshDimension)
+    else:
+        raise ValueError("Bad data type for mesh dimension option")
+
+def parseEnergyGroupStructure(energyGroupStructure):
+    """Convert ARMI group structure to openmc group structure"""
+    energyGroupStructure.append(0.0)
+    energyGroupStructure.reverse()
+    return energyGroupStructure
 

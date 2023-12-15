@@ -43,9 +43,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.energyGroupStructure = None
         self.openmcVerbosity = None
         self.power = None
-        
         self.runDir = None
-        
         self.numberMeshPerEdge = 1
         self.neutronicsOutputsToSave = None
         self.xsLibraryName = None
@@ -53,7 +51,6 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.bcCoefficient = None
         self.detailedDb: Optional[str] = None
         self.csObject: Optional[caseSettings.Settings] = None
-        
 
     def fromUserSettings(self, cs: caseSettings.Settings):
         """Set options from user settings"""
@@ -67,9 +64,9 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.energyGroupStructure = cs[settings.CONF_ENERGY_GROUP_STRUCTURE]
         self.openmcVerbosity = cs[settings.CONF_OPENMC_VERBOSITY]
         self.power = cs.getSetting("power").value
-        
+
         self.setRunDirFromCaseTitle(cs.caseTitle)
-        
+
         self.neutronicsOutputsToSave = cs[settings.CONF_NEUTRONICS_OUTPUTS_TO_SAVE]
         self.existingFixedSource = cs[gsettings.CONF_EXISTING_FIXED_SOURCE]
         self.epsFissionSourceAvg = cs[gsettings.CONF_EPS_FSAVG]
