@@ -117,7 +117,7 @@ def defineSettings():
         ),
         setting.Setting(
             CONF_TALLY_MESH_DIMENSION,
-            default = 10,
+            default = [10, 10, 10],
             label = "Tally mesh dimension in OpenMC",
             description=("Defines number of mesh cells in each dimension for fission and"
             "heating tallies."
@@ -125,7 +125,7 @@ def defineSettings():
         ),
         setting.Setting(
             CONF_ENTROPY_MESH_DIMENSION,
-            default = 10,
+            default = [10, 10, 10],
             label = "Entropy mesh dimension in OpenMC",
             description=("Defines number of mesh cells in each dimension for Shannon entropy"
             "mesh. Used to measure source distribution convergence."

@@ -526,7 +526,7 @@ class OpenMCWriter:
         bbWidth = boundingCylinderRadius
         entropyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         entropyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        entropyMesh.dimension = parseMeshDimension(self.options.entropyMeshDimension)
+        entropyMesh.dimension = tuple(self.options.entropyMeshDimension)
         settings.entropy_mesh = entropyMesh
         settings.export_to_xml()
 
@@ -547,7 +547,7 @@ class OpenMCWriter:
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         fissionTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         fissionTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        fissionTallyMesh.dimension = parseMeshDimension(self.options.tallyMeshDimension)
+        fissionTallyMesh.dimension = tuple(self.options.tallyMeshDimension)
         fissionTally.filters = [openmc.MeshFilter(mesh=fissionTallyMesh)]
         tallies.append(fissionTally)
 
@@ -565,7 +565,7 @@ class OpenMCWriter:
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         meshFluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         meshFluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        meshFluxTallyMesh.dimension = parseMeshDimension(self.options.tallyMeshDimension)
+        meshFluxTallyMesh.dimension = tuple(self.options.tallyMeshDimension)
         energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure(self.options.energyGroupStructure))
         meshFluxTallyEnergyFilter = openmc.EnergyFilter(energyGroupStructure)
         meshFilter = openmc.MeshFilter(mesh=meshFluxTallyMesh)
@@ -578,22 +578,11 @@ class OpenMCWriter:
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         powerTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         powerTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
-        powerTallyMesh.dimension = parseMeshDimension(self.options.tallyMeshDimension)
+        powerTallyMesh.dimension = tuple(self.options.tallyMeshDimension)
         powerTally.filters = [openmc.MeshFilter(mesh=powerTallyMesh)]
         tallies.append(powerTally)
 
         tallies.export_to_xml()
-        
-def parseMeshDimension(meshDimension):
-    """Convert meshDimension option to a tuple for use in OpenMC"""
-    if isinstance(meshDimension, tuple):
-        return meshDimension
-    elif isinstance(meshDimension, list):
-        return tuple(meshDimension)
-    elif isinstance(meshDimension, int):
-        return (meshDimension, meshDimension, meshDimension)
-    else:
-        raise ValueError("Bad data type for mesh dimension option")
 
 def parseEnergyGroupStructure(energyGroupStructure):
     """Convert ARMI group structure to openmc group structure"""
