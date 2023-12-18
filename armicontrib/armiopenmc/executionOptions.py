@@ -43,6 +43,8 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.energyGroupStructure = None
         self.openmcVerbosity = None
         self.power = None
+        self.nOMPThreads = None
+        self.nMPIProcesses = None
         self.runDir = None
         self.numberMeshPerEdge = 1
         self.neutronicsOutputsToSave = None
@@ -64,6 +66,8 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.energyGroupStructure = cs[settings.CONF_ENERGY_GROUP_STRUCTURE]
         self.openmcVerbosity = cs[settings.CONF_OPENMC_VERBOSITY]
         self.power = cs.getSetting("power").value
+        self.nOMPThreads = cs[settings.CONF_N_OMP_THREADS]
+        self.nMPIProcesses = cs[settings.CONF_N_MPI_PROCESSES]
 
         self.setRunDirFromCaseTitle(cs.caseTitle)
 

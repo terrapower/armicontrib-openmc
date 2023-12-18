@@ -520,7 +520,7 @@ class OpenMCWriter:
         settings.particles = self.options.nParticles
         settings.generations_per_batch = 1
         settings.temperature = {'method': 'interpolation', 'default': 350.0}
-        settings.output = {'tallies': True, 'summary': True}
+        settings.output = {'tallies': False, 'summary': False}
         settings.verbosity = self.options.openmcVerbosity
         entropyMesh = openmc.RegularMesh()
         bbWidth = boundingCylinderRadius

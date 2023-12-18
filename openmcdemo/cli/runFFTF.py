@@ -38,7 +38,9 @@ from armiopenmc.settings import (
     CONF_TALLY_MESH_DIMENSION,
     CONF_ENTROPY_MESH_DIMENSION,
     CONF_ENERGY_GROUP_STRUCTURE,
-    CONF_OPENMC_VERBOSITY
+    CONF_OPENMC_VERBOSITY,
+    CONF_N_OMP_THREADS,
+    CONF_N_MPI_PROCESSES
 )
 
 
@@ -59,6 +61,8 @@ class RunFFTF(EntryPoint):
         self.createOptionFromSetting(CONF_ENTROPY_MESH_DIMENSION)
         self.createOptionFromSetting(CONF_ENERGY_GROUP_STRUCTURE)
         self.createOptionFromSetting(CONF_OPENMC_VERBOSITY)
+        self.createOptionFromSetting(CONF_N_OMP_THREADS)
+        self.createOptionFromSetting(CONF_N_MPI_PROCESSES)
         self.parser.add_argument(
             "--inputs-only",
             action="store_true",

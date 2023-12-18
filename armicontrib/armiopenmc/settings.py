@@ -24,6 +24,7 @@ ARMI built-in ``neutronicsKernel`` setting:
 
     * "OpenMC": Enable OpenMC.
 """
+import os
 import shutil
 
 from armi.physics.neutronics import settings as neutronicsSettings
@@ -46,6 +47,8 @@ CONF_TALLY_MESH_DIMENSION = "tallyMeshDimension"
 CONF_ENTROPY_MESH_DIMENSION = "entropyMeshDimension"
 CONF_ENERGY_GROUP_STRUCTURE = "energyGroupStructure"
 CONF_OPENMC_VERBOSITY = "openmcVerbosity"
+CONF_N_OMP_THREADS = "nOMPThreads"
+CONF_N_MPI_PROCESSES = "nMPIProcesses"
 
 
 CONF_OPT_OPENMC = "OpenMC"
@@ -154,6 +157,25 @@ def defineSettings():
                          "7. all of the above + k by generation"
                          "9. all of the above + indicate when each particle starts"
                          "10. all of the above + event information"
+            )
+        ),
+        setting.Setting(
+            CONF_N_OMP_THREADS,
+            default = os.cpu_count(),
+            label = "Number of OpenMP threads",
+            description=("Number of OpenMP threads to use in OpenMC."
+                         "Defaults to number of hardware threads available."
+            )
+        ),
+        setting.Setting(
+            CONF_N_MPI_PROCESSES,
+            default = 1,
+            label = "Number of MPI processes",
+            description=("Number of MPI processes to use in OpenMC."
+                         "Each process will load its own copy of the problem geometry,"
+                         "So high numbers of MPI processes can use a lot of memory for"
+                         "complex geometry problems. Using shared-memory OpenMP threads"
+                         "can help mitigate this."
             )
         )
     ]
