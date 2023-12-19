@@ -66,27 +66,27 @@ class OpenMCWriter:
                 block = MultipleComponentMerger(sourceBlock=block, soluteNames=helixComponentNames, solventName=solventName).convert()
             return block
 
-        def buildCellRegion(component, bottomPlane, topPlane, origin=(0.0,0.0)):
+        def buildCellRegion(component, bottomPlane, topPlane, origin=(0.0,0.0), outsideBuffer=0.0):
             """Build region based on shape"""
 
             # Circle
             if isinstance(component, basicShapes.Circle):
                 innerCylinder = openmc.ZCylinder(x0=origin[0], y0=origin[1], r=component.getDimension("id")/2)
-                outerCylinder = openmc.ZCylinder(x0=origin[0], y0=origin[1], r=component.getDimension("od")/2)
+                outerCylinder = openmc.ZCylinder(x0=origin[0], y0=origin[1], r=component.getDimension("od")/2 + outsideBuffer)
                 region = +bottomPlane & -topPlane & +innerCylinder & -outerCylinder
                 return region
 
             # Hexagon
             if isinstance(component, basicShapes.Hexagon):
                 innerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("ip")/3**.5, orientation='x', origin=origin)
-                outerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("op")/3**.5, orientation='x', origin=origin)
+                outerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("op")/3**.5 + outsideBuffer, orientation='x', origin=origin)
                 region = +bottomPlane & -topPlane & ~innerHexPrism & outerHexPrism
                 return region
 
             # Rectangle
             if isinstance(component, basicShapes.Rectangle):
                 innerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthInner"), height=component.getDimension("lengthInner"), origin=origin) # Check that width/height aren't flipped
-                outerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthOuter"), height=component.getDimension("lengthOuter"), origin=origin)
+                outerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthOuter")+outsideBuffer, height=component.getDimension("lengthOuter")+outsideBuffer, origin=origin)
                 region = +bottomPlane & -topPlane & ~innerRectPrism & outerRectPrism
                 return region
 
@@ -105,6 +105,32 @@ class OpenMCWriter:
 
             # Others
             raise NotImplementedError("Shape type not supported yet")
+
+        def buildCell(component, material, block, bottomPlane, topPlane, origin=(0.0,0.0), outsideBuffer=0.0):
+            if component.getDimension("mult")==1:
+                        cell = openmc.Cell(name=component.getName(),
+                                           fill=material,
+                                           region=buildCellRegion(component, bottomPlane=blockBottomPlane, topPlane=blockTopPlane, origin=origin, outsideBuffer=outsideBuffer))
+            else:
+                if block.hasPinPitch():
+                    latticePitch = block.getPinPitch()
+                else:
+                    latticePitch = 1.2*max([component.getBoundingCircleOuterDiameter() for component in block.getComponents() if component.getDimension("mult")!=1])
+
+                cellRegions = []
+                for location in component.spatialLocator:
+                    if self.r.core.geomType == armi.reactor.geometry.GeomType.HEX:
+                        origin = (location[0]*latticePitch+location[1]*.5*latticePitch, location[1]*3**.5*latticePitch)
+                    elif self.r.core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
+                        origin = (location[0]*latticePitch[0], location[1]*latticePitch[1])
+                    else:
+                        raise TypeError("Unsupported geometry type")
+
+                    cellRegions.append(buildCellRegion(component, bottomPlane=blockBottomPlane, topPlane=blockTopPlane, origin=origin))
+                cell = openmc.Cell(name=component.getName(),
+                                   fill=material,
+                                   region=openmc.Union(cellRegions))
+            return cell
 
         def cartesianToRing(cartesianIndices):
             """Convenience function for converting from Cartesian coordinate system to OpenMC's ring system"""
@@ -386,46 +412,32 @@ class OpenMCWriter:
                 # This code should be migrated to proper plugin geometryTransformations because we do not undo this transformation anywhere.
                 remainingComponentOuterDiameters = [component.getBoundingCircleOuterDiameter() for component in remainingComponents]
                 largestRemainingComponent = remainingComponents[max(range(len(remainingComponentOuterDiameters)), key=remainingComponentOuterDiameters.__getitem__)]
-                if isinstance(largestRemainingComponent, basicShapes.Circle):
-                    largestRemainingComponent.setDimension("od",largestRemainingComponent.getDimension("od")+.01)
-                elif isinstance(largestRemainingComponent, basicShapes.Hexagon):
-                    largestRemainingComponent.setDimension("op",largestRemainingComponent.getDimension("op")+.01)
-                elif isinstance(largestRemainingComponent, basicShapes.Rectangle):
-                    largestRemainingComponent.setDimension("widthOuter",largestRemainingComponent.getDimension("widthOuter")+.01)
-                    largestRemainingComponent.setDimension("widthInner",largestRemainingComponent.getDimension("widthInner")+.01)
-                else:
-                    raise NotImplementedError("Shape type not supported yet")
+                componentMaterial = buildComponentMaterial(largestRemainingComponent)
+                if componentMaterial is not None:
+                        materials.append(componentMaterial)
+                        plotColors[componentMaterial.id] = colorLookup[component.material.name]
+                cell = buildCell(largestRemainingComponent,
+                                 material=componentMaterial,
+                                 block=block,
+                                 bottomPlane=blockBottomPlane,
+                                 topPlane=blockTopPlane,
+                                 origin=(0.0,0.0),
+                                 outsideBuffer=0.01)
+                componentCellsInBlock.append(cell)
+                remainingComponents.remove(largestRemainingComponent)
 
                 for component in remainingComponents:
                     componentMaterial = buildComponentMaterial(component)
-
-                    if component.getDimension("mult")==1:
-                        cell = openmc.Cell(name=component.getName(),
-                                           fill=componentMaterial,
-                                           region=buildCellRegion(component, bottomPlane=blockBottomPlane, topPlane=blockTopPlane))
-                    else:
-                        if block.hasPinPitch():
-                            latticePitch = block.getPinPitch()
-                        else:
-                            latticePitch = 1.2*max([component.getBoundingCircleOuterDiameter() for component in remainingComponents if component.getDimension("mult")!=1])
-
-                        cellRegions = []
-                        for location in component.spatialLocator:
-                            if core.geomType == armi.reactor.geometry.GeomType.HEX:
-                                origin = (location[0]*latticePitch+location[1]*.5*latticePitch, location[1]*3**.5*latticePitch)
-                            elif core.geomType == armi.reactor.geometry.GeomType.CARTESIAN:
-                                origin = (location[0]*latticePitch[0], location[1]*latticePitch[1])
-                            else:
-                                raise TypeError("Unsupported geometry type")
-
-                            cellRegions.append(buildCellRegion(component, bottomPlane=blockBottomPlane, topPlane=blockTopPlane, origin=origin))
-                        cell = openmc.Cell(name=component.getName(),
-                                           fill=componentMaterial,
-                                           region=openmc.Union(cellRegions))
-
                     if componentMaterial is not None:
                         materials.append(componentMaterial)
                         plotColors[componentMaterial.id] = colorLookup[component.material.name]
+                    cell = buildCell(component,
+                                     material=componentMaterial,
+                                     block=block,
+                                     bottomPlane=blockBottomPlane,
+                                     topPlane=blockTopPlane,
+                                     origin=(0.0,0.0),
+                                     outsideBuffer=0.0)
                     componentCellsInBlock.append(cell)
 
                 if blockHasDerivedShapeComponent:
