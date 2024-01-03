@@ -103,6 +103,7 @@ class OpenMCReader:
         fluxTally = self.sp.get_tally(scores=['flux'])
         blockFilter = fluxTally.find_filter(openmc.CellFilter)
         reshapedFluxTally = fluxTally.get_reshaped_data()
+        openmc.reset_auto_ids() # openmc will complain about reused ids if we don't reset
         cells = openmc.Geometry.from_xml("geometry.xml").get_all_cells()
 
         for i in range(len(reshapedFluxTally[:,0])):
