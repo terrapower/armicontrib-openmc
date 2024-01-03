@@ -30,6 +30,8 @@ from armi.settings import caseSettings
 from armi.reactor.tests import test_reactors
 from armi.utils import directoryChangers
 
+from armi.physics.neutronics.settings import CONF_GROUP_STRUCTURE
+
 from armiopenmc.settings import (
     CONF_OPENMC_PATH,
     CONF_N_PARTICLES,
@@ -37,7 +39,7 @@ from armiopenmc.settings import (
     CONF_N_INACTIVE,
     CONF_TALLY_MESH_DIMENSION,
     CONF_ENTROPY_MESH_DIMENSION,
-    CONF_ENERGY_GROUP_STRUCTURE,
+    #CONF_ENERGY_GROUP_STRUCTURE,
     CONF_OPENMC_VERBOSITY,
     CONF_N_OMP_THREADS,
     CONF_N_MPI_PROCESSES
@@ -59,7 +61,7 @@ class RunFFTF(EntryPoint):
         self.createOptionFromSetting(CONF_N_INACTIVE)
         self.createOptionFromSetting(CONF_TALLY_MESH_DIMENSION)
         self.createOptionFromSetting(CONF_ENTROPY_MESH_DIMENSION)
-        self.createOptionFromSetting(CONF_ENERGY_GROUP_STRUCTURE)
+        self.createOptionFromSetting(CONF_GROUP_STRUCTURE)
         self.createOptionFromSetting(CONF_OPENMC_VERBOSITY)
         self.createOptionFromSetting(CONF_N_OMP_THREADS)
         self.createOptionFromSetting(CONF_N_MPI_PROCESSES)

@@ -565,7 +565,7 @@ class OpenMCWriter:
 
         blockFluxTally = openmc.Tally(2, name="block filter multigroup flux")
         blockFluxTally.scores = ['flux']
-        energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure(self.options.energyGroupStructure))
+        energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure(self.options.groupStructure))
         blockFluxTallyEnergyFilter = openmc.EnergyFilter(energyGroupStructure)
         blockFilter = openmc.CellFilter(bins = self.blockFilterCells)
         blockFluxTally.filters = [blockFilter, blockFluxTallyEnergyFilter]
@@ -578,7 +578,7 @@ class OpenMCWriter:
         meshFluxTallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         meshFluxTallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
         meshFluxTallyMesh.dimension = tuple(self.options.tallyMeshDimension)
-        energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure(self.options.energyGroupStructure))
+        energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure(self.options.groupStructure))
         meshFluxTallyEnergyFilter = openmc.EnergyFilter(energyGroupStructure)
         meshFilter = openmc.MeshFilter(mesh=meshFluxTallyMesh)
         meshFluxTally.filters = [meshFilter, meshFluxTallyEnergyFilter]

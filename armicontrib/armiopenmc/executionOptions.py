@@ -63,7 +63,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.nInactiveBatches = cs[settings.CONF_N_INACTIVE]
         self.tallyMeshDimension = cs[settings.CONF_TALLY_MESH_DIMENSION]
         self.entropyMeshDimension = cs[settings.CONF_ENTROPY_MESH_DIMENSION]
-        self.energyGroupStructure = cs[settings.CONF_ENERGY_GROUP_STRUCTURE]
+        self.groupStructure = cs[gsettings.CONF_GROUP_STRUCTURE]
         self.openmcVerbosity = cs[settings.CONF_OPENMC_VERBOSITY]
         self.power = cs.getSetting("power").value
         self.nOMPThreads = cs[settings.CONF_N_OMP_THREADS]

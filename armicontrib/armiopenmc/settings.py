@@ -45,7 +45,7 @@ CONF_N_BATCHES = "nBatches"
 CONF_N_INACTIVE = "nInactiveBatches"
 CONF_TALLY_MESH_DIMENSION = "tallyMeshDimension"
 CONF_ENTROPY_MESH_DIMENSION = "entropyMeshDimension"
-CONF_ENERGY_GROUP_STRUCTURE = "energyGroupStructure"
+#CONF_ENERGY_GROUP_STRUCTURE = "energyGroupStructure"
 CONF_OPENMC_VERBOSITY = "openmcVerbosity"
 CONF_N_OMP_THREADS = "nOMPThreads"
 CONF_N_MPI_PROCESSES = "nMPIProcesses"
@@ -132,15 +132,6 @@ def defineSettings():
             label = "Entropy mesh dimension in OpenMC",
             description=("Defines number of mesh cells in each dimension for Shannon entropy"
             "mesh. Used to measure source distribution convergence."
-            )
-        ),
-        setting.Setting(
-            CONF_ENERGY_GROUP_STRUCTURE,
-            default = "ARMI33",
-            label = "Energy group structure for multigroup flux tally",
-            description=("String containing the name of an ARMI energy group to use in the"
-            "multigroup flux tally. See armi/physics/neutronics/energyGroups.py for"
-            "valid group structure names."
             )
         ),
         setting.Setting(
