@@ -111,5 +111,8 @@ class OpenMCReader:
             blockName = cells[cellNumber].name
             b = self.r.core.getBlockByName(blockName)
             
-            setattr(b.p, "mgFlux", reshapedFluxTally[i,:]*self.nf)
+            # Energy groups in openmc are in ascending order, so we need to reverse first
+            blockFluxData = list(reshapedFluxTally[i,:]*self.nf)
+            blockFluxData.reverse()
+            setattr(b.p, "mgFlux", blockFluxData)
 
