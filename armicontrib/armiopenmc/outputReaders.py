@@ -116,7 +116,7 @@ class OpenMCReader:
 
     def _readPower(self):
         """Read power density"""
-        powerTally = self._sp.get_tally(scores=['flux'])
+        powerTally = self._sp.get_tally(scores=['heating-local'])
         blockFilter = powerTally.find_filter(openmc.CellFilter)
         reshapedPowerTally = powerTally.get_reshaped_data()
         cells = self._geometry.get_all_cells()
@@ -130,13 +130,16 @@ class OpenMCReader:
             
             b.p.power = blockPower  # [W]
             b.p.pdens = blockPower/b.getVolume()  # [W/cm^3]
+            # Our best estimate for peak power is average power for now.
+            # This can be improved by a finer meshed tally inside the block.
+            b.p.ppdens = blockPower/b.getVolume()
 
     def _readFluxes(self):
         """
         Read fluxes from flux tally.
         """
         
-        fluxTally = self._sp.get_tally(scores=['flux'])
+        fluxTally = self._sp.get_tally(id=102)
         blockFilter = fluxTally.find_filter(openmc.CellFilter)
         reshapedFluxTally = fluxTally.get_reshaped_data()
         cells = self._geometry.get_all_cells()
@@ -150,5 +153,8 @@ class OpenMCReader:
             blockFluxData = list(reshapedFluxTally[i,:]*self.nf)
             blockFluxData.reverse()
             setattr(b.p, "mgFlux", blockFluxData)
-            setattr(b.p, "flux", sum(blockFluxData))
+            setattr(b.p, "flux", sum(blockFluxData)/b.getVolume())
+            # Our best estimate for peak flux is average flux for now.
+            # This can be improved by a finer meshed tally inside the block.
+            setattr(b.p, "fluxPeak", sum(blockFluxData)/b.getVolume())
 
