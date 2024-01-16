@@ -23,6 +23,8 @@ import warnings
 import math
 import os
 
+import numpy as np
+
 import armi
 from armi import runLog
 from armi.nucDirectory import nuclideBases
@@ -503,7 +505,7 @@ class OpenMCWriter:
         plot.basis = 'xy'
         plot.filename = self.r.getName()
         plot.width = (boundingCylinderRadius, boundingCylinderRadius)
-        plot.pixels = (4000, 4000)
+        plot.pixels = (100, 100)
         plot.origin = (0.0, 0.0, 20.0)
         plot.color_by = 'material'
         plot.colors = plotColors
@@ -545,7 +547,10 @@ class OpenMCWriter:
     def writeTallies(self):
         """Write the OpenMC tallies input file."""
         runLog.info("Writing tallies...")
-        tallies = openmc.Tallies()
+        if self.options.Tallies is None:
+            tallies = openmc.Tallies()
+        else:
+            tallies = self.options.Tallies
 
         if self.r.core.geomType == armi.reactor.geometry.GeomType.HEX:
             bbWidth = self.r.core.getCoreRadius()
@@ -557,34 +562,34 @@ class OpenMCWriter:
         tallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         tallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
         tallyMesh.dimension = tuple(self.options.tallyMeshDimension)
-        meshFilter = openmc.MeshFilter(mesh=tallyMesh)
+        meshFilter = openmc.MeshFilter(mesh=tallyMesh, filter_id=101)
 
         energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure(self.options.groupStructure))
-        energyFilter = openmc.EnergyFilter(energyGroupStructure)
-        blockFilter = openmc.CellFilter(bins = self.blockFilterCells)
+        energyFilter = openmc.EnergyFilter(energyGroupStructure, filter_id=102)
+        blockFilter = openmc.CellFilter(bins = self.blockFilterCells, filter_id=103)
 
-        fissionTally = openmc.Tally(1, name="fission rate")
+        fissionTally = openmc.Tally(101, name="fission rate")
         fissionTally.scores = ['fission']
         fissionTally.nuclides = ['U235', 'U238']
         fissionTally.filters = [meshFilter]
         tallies.append(fissionTally)
 
-        blockFluxTally = openmc.Tally(2, name="block filter multigroup flux")
+        blockFluxTally = openmc.Tally(102, name="block filter multigroup flux")
         blockFluxTally.scores = ['flux']
         blockFluxTally.filters = [blockFilter, energyFilter]
         tallies.append(blockFluxTally)
 
-        meshFluxTally = openmc.Tally(3, name="mesh filter multigroup flux")
+        meshFluxTally = openmc.Tally(103, name="mesh filter multigroup flux")
         meshFluxTally.scores = ['flux']
         meshFluxTally.filters = [meshFilter, energyFilter]
         tallies.append(meshFluxTally)
 
-        powerTally = openmc.Tally(4, name="power")
+        powerTally = openmc.Tally(104, name="power")
         powerTally.scores = ['heating-local']
-        powerTally.filters = [meshFilter]
+        powerTally.filters = [blockFilter]
         tallies.append(powerTally)
 
-        absorptionTally = openmc.Tally(5, name="absorption")
+        absorptionTally = openmc.Tally(105, name="absorption")
         absorptionTally.scores = ['absorption']
         absorptionTally.filters = [blockFilter]
         tallies.append(absorptionTally)

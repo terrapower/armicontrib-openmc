@@ -14,6 +14,7 @@
 
 import os
 import shutil
+import openmc
 
 from armi import runLog
 from armi.physics.neutronics.globalFlux import globalFluxInterface
@@ -53,6 +54,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.bcCoefficient = None
         self.detailedDb: Optional[str] = None
         self.csObject: Optional[caseSettings.Settings] = None
+        self.Tallies: openmc.Tallies = None
 
     def fromUserSettings(self, cs: caseSettings.Settings):
         """Set options from user settings"""
@@ -100,3 +102,11 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         if self.isRestart:
             for _label, fnames in fileSetsHandler.specifyRestartFiles(self).items():
                 self.extraInputFiles.extend([(f, f) for f in fnames])
+
+    def addTallies(self, Tallies: openmc.Tallies):
+        """
+        Tallies to use in the openmc run in addition to the default tallies.
+        Specified using the openmc python api.
+        Note: Beware reusing tally ids used by the default tallies (101-105).
+        """
+        self.Tallies = Tallies
