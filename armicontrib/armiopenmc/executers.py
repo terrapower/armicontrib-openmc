@@ -107,5 +107,5 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
     def _readOutput(self):
         """Read output."""
         reader = outputReaders.OpenMCReader(self.options)
-        reader.apply(self.r)
+        #reader.apply(self.r)
         return reader
