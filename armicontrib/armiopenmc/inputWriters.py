@@ -85,6 +85,12 @@ class OpenMCWriter:
         self._writeCoreGeometry()
 
         self.blockFilterCells = []
+        '''
+        if fromBlueprints:
+            self.blockTypes = self._blockTypesFromBlueprints()
+            self.assemblyTypes = self._assemblyTypesFromBlueprints()
+        '''
+
         for assembly in core:
             self._writeAssemblyGeometry(assembly)
 
@@ -324,8 +330,6 @@ class OpenMCWriter:
         # Write any lattices we need for components with mult>1
         blockLatticeCell, remainingComponents = self._writeBlockLatticeGeometry(block,
                                                                                 blockMinusDerivedShape,
-                                                                                blockBottomPlane,
-                                                                                blockTopPlane,
                                                                                 blockHasDerivedShapeComponent,
                                                                                 derivedShapeComponent,
                                                                                 derivedShapeComponentMaterial)
@@ -343,8 +347,6 @@ class OpenMCWriter:
         cell = self._buildCell(largestRemainingComponent,
                                material=componentMaterial,
                                block=block,
-                               bottomPlane=blockBottomPlane,
-                               topPlane=blockTopPlane,
                                origin=(0.0,0.0),
                                outsideBuffer=0.01)
         componentCellsInBlock.append(cell)
@@ -359,8 +361,6 @@ class OpenMCWriter:
             cell = self._buildCell(component,
                                    material=componentMaterial,
                                    block=block,
-                                   bottomPlane=blockBottomPlane,
-                                   topPlane=blockTopPlane,
                                    origin=(0.0,0.0),
                                    outsideBuffer=0.0)
             componentCellsInBlock.append(cell)
@@ -369,19 +369,20 @@ class OpenMCWriter:
         if blockHasDerivedShapeComponent:
             derivedShapeComponentCell = openmc.Cell(name=derivedShapeComponent.getName(),
                                                     fill = derivedShapeComponentMaterial,
-                                                    region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]) & +blockBottomPlane & -blockTopPlane)
+                                                    region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]))
             componentCellsInBlock.append(derivedShapeComponentCell)
         else:
             # If there's no DerivedShape component, add an empty cell in unoccupied region in case ComponentCellsInBlock doesn't fill its assemblyLattice cell
             emptyComponentCell = openmc.Cell(name='emptyComponent',
-                                             region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]) & +blockBottomPlane & -blockTopPlane)
+                                             region = ~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]))
             componentCellsInBlock.append(emptyComponentCell)
         
         # Assemble component cells into a universe for the block
         blockUniverse = openmc.Universe(cells = componentCellsInBlock)
         blockUniverseCell = openmc.Cell(name=block.getName(),
                                         fill=blockUniverse,
-                                        region=openmc.Union([blockCell.region for blockCell in componentCellsInBlock]))
+                                        region=+blockBottomPlane & -blockTopPlane)
+                                        #region=openmc.Union([blockCell.region for blockCell in componentCellsInBlock]) & +blockBottomPlane & -blockTopPlane)
 
         blockCellsInAssembly.append(blockUniverseCell)
         self.blockFilterCells.append(blockUniverseCell)
@@ -391,8 +392,6 @@ class OpenMCWriter:
     def _writeBlockLatticeGeometry(self,
                                    block,
                                    blockMinusDerivedShape,
-                                   blockBottomPlane,
-                                   blockTopPlane,
                                    blockHasDerivedShapeComponent,
                                    derivedShapeComponent,
                                    derivedShapeComponentMaterial):
@@ -441,7 +440,7 @@ class OpenMCWriter:
                         componentMaterial = _buildComponentMaterial(component)
                         cell = openmc.Cell(name=component.getName(),
                                            fill=componentMaterial,
-                                           region=_buildCellRegion(component, bottomPlane=blockBottomPlane, topPlane=blockTopPlane))
+                                           region=_buildCellRegion(component))
                         if componentMaterial is not None:
                             self.materials.append(componentMaterial)
                             self.plotColors[componentMaterial.id] = self.colorLookup[component.material.name]
@@ -450,7 +449,7 @@ class OpenMCWriter:
                         # Fill unused space in lattice with derivedShapeComponentMaterial
                         derivedShapeComponentLatticeCell = openmc.Cell(name=derivedShapeComponent.getName(),
                                                                        fill=derivedShapeComponentMaterial,
-                                                                       region=~openmc.Union([cell.region for cell in componentCellsInMultGroupUniverse]) & +blockBottomPlane & -blockTopPlane)
+                                                                       region=~openmc.Union([cell.region for cell in componentCellsInMultGroupUniverse]))
                         componentCellsInMultGroupUniverse.append(derivedShapeComponentLatticeCell)
 
                     multGroupUniverse = openmc.Universe(name="multGroup"+str(mult), cells=componentCellsInMultGroupUniverse)
@@ -475,7 +474,7 @@ class OpenMCWriter:
                 blockLatticeIndices.reverse()
             blockLattice.universes = blockLatticeIndices
 
-            blockLatticeOuterCell = openmc.Cell(region=+blockBottomPlane & -blockTopPlane & -self.boundingCylinder,
+            blockLatticeOuterCell = openmc.Cell(region=-self.boundingCylinder,
                                                 fill=derivedShapeComponentMaterial)
             blockLatticeOuterUniverse = openmc.Universe(cells=[blockLatticeOuterCell])
             blockLattice.outer = blockLatticeOuterUniverse
@@ -485,14 +484,14 @@ class OpenMCWriter:
             smallestMult1Component = multGroups[1][min(range(len(mult1ComponentInnerDiameters)), key=mult1ComponentInnerDiameters.__getitem__)]
             if isinstance(smallestMult1Component, basicShapes.Circle):
                 innerCylinder = openmc.ZCylinder(r=smallestMult1Component.getDimension("id")/2-.05)
-                blockLatticeCellRegion = -innerCylinder & +blockBottomPlane & -blockTopPlane
+                blockLatticeCellRegion = -innerCylinder
             elif isinstance(smallestMult1Component, basicShapes.Hexagon):
                 innerHexPrism = openmc.model.hexagonal_prism(edge_length=smallestMult1Component.getDimension("ip")/3**.5-.05, orientation='x')
-                blockLatticeCellRegion = innerHexPrism & +blockBottomPlane & -blockTopPlane
+                blockLatticeCellRegion = innerHexPrism
             elif isinstance(smallestMult1Component, basicShapes.Rectangle):
                 innerRectPrism = openmc.model.rectangular_prism(width=smallestMult1Component.getDimension("widthInner")-.05,
                                                                 height=smallestMult1Component.getDimension("lengthInner")-.05)
-                blockLatticeCellRegion = innerRectPrism & +blockBottomPlane & -blockTopPlane
+                blockLatticeCellRegion = innerRectPrism
             else:
                 raise NotImplementedError("Shape type not supported yet")
             blockLatticeCell = [openmc.Cell(name="blockLattice",
@@ -503,14 +502,28 @@ class OpenMCWriter:
             blockLatticeCell = []
             remainingComponents = [component for component in blockMinusDerivedShape]
         return blockLatticeCell, remainingComponents
+        
+        '''
+    def _blockTypesFromBlueprints(self):
+        
+        """Can we ditch blockTopPlane and blockBottomPlane (only assign to blockUniverseCell, not blockUniverse of components)?"""
+        
+        blueprints = self.r.blueprints()
+        blockTypes = dict() # Dict of {"name": openmc.Universe}
+        for block in bp.blockDesigns:
+            
+        
+        
+        return blockTypes
+        '''
 
 
-    def _buildCell(self, component, material, block, bottomPlane, topPlane, origin=(0.0,0.0), outsideBuffer=0.0):
+    def _buildCell(self, component, material, block, origin=(0.0,0.0), outsideBuffer=0.0):
         """Create an OpenMC cell for a component or pin"""
         if component.getDimension("mult")==1:
                     cell = openmc.Cell(name=component.getName(),
                                        fill=material,
-                                       region=_buildCellRegion(component, bottomPlane=bottomPlane, topPlane=topPlane, origin=origin, outsideBuffer=outsideBuffer))
+                                       region=_buildCellRegion(component, origin=origin, outsideBuffer=outsideBuffer))
         else:
             if block.hasPinPitch():
                 latticePitch = block.getPinPitch()
@@ -526,7 +539,7 @@ class OpenMCWriter:
                 else:
                     raise TypeError("Unsupported geometry type")
 
-                cellRegions.append(_buildCellRegion(component, bottomPlane=bottomPlane, topPlane=topPlane, origin=origin))
+                cellRegions.append(_buildCellRegion(component, origin=origin))
             cell = openmc.Cell(name=component.getName(),
                                fill=material,
                                region=openmc.Union(cellRegions))
@@ -552,28 +565,28 @@ def _buildComponentMaterial(component):
     return componentMaterial
 
 
-def _buildCellRegion(component, bottomPlane, topPlane, origin=(0.0,0.0), outsideBuffer=0.0):
+def _buildCellRegion(component, origin=(0.0,0.0), outsideBuffer=0.0):
     """Build region based on shape"""
 
     # Circle
     if isinstance(component, basicShapes.Circle):
         innerCylinder = openmc.ZCylinder(x0=origin[0], y0=origin[1], r=component.getDimension("id")/2)
         outerCylinder = openmc.ZCylinder(x0=origin[0], y0=origin[1], r=component.getDimension("od")/2 + outsideBuffer)
-        region = +bottomPlane & -topPlane & +innerCylinder & -outerCylinder
+        region = +innerCylinder & -outerCylinder
         return region
 
     # Hexagon
     if isinstance(component, basicShapes.Hexagon):
         innerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("ip")/3**.5, orientation='x', origin=origin)
         outerHexPrism = openmc.model.hexagonal_prism(edge_length=component.getDimension("op")/3**.5 + outsideBuffer, orientation='x', origin=origin)
-        region = +bottomPlane & -topPlane & ~innerHexPrism & outerHexPrism
+        region = ~innerHexPrism & outerHexPrism
         return region
 
     # Rectangle
     if isinstance(component, basicShapes.Rectangle):
         innerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthInner"), height=component.getDimension("lengthInner"), origin=origin) # Check that width/height aren't flipped
         outerRectPrism = openmc.model.rectangular_prism(width=component.getDimension("widthOuter")+outsideBuffer, height=component.getDimension("lengthOuter")+outsideBuffer, origin=origin)
-        region = +bottomPlane & -topPlane & ~innerRectPrism & outerRectPrism
+        region = ~innerRectPrism & outerRectPrism
         return region
 
     # DerivedShape
