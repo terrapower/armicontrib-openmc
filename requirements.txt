@@ -1,2 +1,2 @@
-git+https://github.com/terrapower/armi
+git+https://github.com/terrapower/armi.git#egg=armi
 -e .[dev]
