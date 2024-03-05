@@ -32,8 +32,6 @@ instance.
 
 from armi import runLog
 from armi import interfaces
-from armi.physics import neutronics
-from armi.nuclearDataIO import xsLibraries
 from armi import mpiActions
 
 from . import executers

@@ -21,17 +21,12 @@ Components for writing OpenMC inputs from ARMI models.
 """
 import warnings
 import math
-import os
-
-import numpy as np
 
 import armi
 from armi import runLog
 from armi.nucDirectory import nuclideBases
-from armi.utils import hexagon
 from armi.reactor.converters.blockConverters import MultipleComponentMerger
 from armi.reactor.components import basicShapes, complexShapes
-from armi.reactor import systemLayoutInput
 from armi.physics.neutronics import energyGroups
 
 import openmc
