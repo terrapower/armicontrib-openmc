@@ -77,7 +77,7 @@ class OpenMCReader:
         self._readPower()
         self._readFluxes()
 
-        #if self.opts.detailedDb is not None:
+        # if self.opts.detailedDb is not None:
         #    with Database3(self.opts.detailedDb, "w") as dbo:
         #        dbo.writeInputsToDB(self.opts.csObject)
         #        dbo.writeToDB(self.r)
@@ -91,11 +91,15 @@ class OpenMCReader:
         OpenMC returns tallies in units per source particle.
         Normalize to usable units with heating tally and known reactor power.
         """
-        totalHeatingTally = sum(self._sp.get_tally(scores=['heating-local']).mean)*1.602e-19 #[J/(sourceParticle)]
+        totalHeatingTally = (
+            sum(self._sp.get_tally(scores=["heating-local"]).mean) * 1.602e-19
+        )  # [J/(sourceParticle)]
         if self.r is None:
-            raise ValueError("OpenMCReader.r must be set before normalization factor can be calculated.")
+            raise ValueError(
+                "OpenMCReader.r must be set before normalization factor can be calculated."
+            )
         power = self.opts.power  # [J/s]
-        self.nf = power/totalHeatingTally  # [sourceParticle/s]
+        self.nf = power / totalHeatingTally  # [sourceParticle/s]
 
     def _readStatePoint(self):
         """Load statepoint output file into memory"""
@@ -107,7 +111,7 @@ class OpenMCReader:
         Read openmc geometry object into memory. This uses a lot of memory,
         but we need it to ensure blockFiltered tally results are written to the correct blocks.
         """
-        openmc.reset_auto_ids() # openmc will complain about reused ids if we don't reset
+        openmc.reset_auto_ids()  # openmc will complain about reused ids if we don't reset
         self._geometry = openmc.Geometry.from_xml("geometry.xml")
 
     def _readKeff(self):
@@ -116,45 +120,44 @@ class OpenMCReader:
 
     def _readPower(self):
         """Read power density"""
-        powerTally = self._sp.get_tally(scores=['heating-local'])
+        powerTally = self._sp.get_tally(scores=["heating-local"])
         blockFilter = powerTally.find_filter(openmc.CellFilter)
         reshapedPowerTally = powerTally.get_reshaped_data()
         cells = self._geometry.get_all_cells()
-        
+
         for i in range(len(reshapedPowerTally)):
             cellNumber = blockFilter.bins[i]
             blockName = cells[cellNumber].name
             b = self.r.core.getBlockByName(blockName)
-            
-            blockPower = reshapedPowerTally[i]*self.nf*1.602e-19  # [W]
-            
+
+            blockPower = reshapedPowerTally[i] * self.nf * 1.602e-19  # [W]
+
             b.p.power = blockPower  # [W]
-            b.p.pdens = blockPower/b.getVolume()  # [W/cm^3]
+            b.p.pdens = blockPower / b.getVolume()  # [W/cm^3]
             # Our best estimate for peak power is average power for now.
             # This can be improved by a finer meshed tally inside the block.
-            b.p.ppdens = blockPower/b.getVolume()
+            b.p.ppdens = blockPower / b.getVolume()
 
     def _readFluxes(self):
         """
         Read fluxes from flux tally.
         """
-        
+
         fluxTally = self._sp.get_tally(id=102)
         blockFilter = fluxTally.find_filter(openmc.CellFilter)
         reshapedFluxTally = fluxTally.get_reshaped_data()
         cells = self._geometry.get_all_cells()
 
-        for i in range(len(reshapedFluxTally[:,0])):
+        for i in range(len(reshapedFluxTally[:, 0])):
             cellNumber = blockFilter.bins[i]
             blockName = cells[cellNumber].name
             b = self.r.core.getBlockByName(blockName)
-            
+
             # Energy groups in openmc are in ascending order, so we need to reverse first
-            blockFluxData = list(reshapedFluxTally[i,:]*self.nf)
+            blockFluxData = list(reshapedFluxTally[i, :] * self.nf)
             blockFluxData.reverse()
             setattr(b.p, "mgFlux", blockFluxData)
-            setattr(b.p, "flux", sum(blockFluxData)/b.getVolume())
+            setattr(b.p, "flux", sum(blockFluxData) / b.getVolume())
             # Our best estimate for peak flux is average flux for now.
             # This can be improved by a finer meshed tally inside the block.
-            setattr(b.p, "fluxPeak", sum(blockFluxData)/b.getVolume())
-
+            setattr(b.p, "fluxPeak", sum(blockFluxData) / b.getVolume())

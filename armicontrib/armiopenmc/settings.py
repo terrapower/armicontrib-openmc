@@ -97,77 +97,80 @@ def defineSettings():
         ),
         setting.Setting(
             CONF_N_BATCHES,
-            default = 100,
-            label = "Number of batches",
-            description=("Defines number of batches to be run in an OpenMC simulation.")
+            default=100,
+            label="Number of batches",
+            description=("Defines number of batches to be run in an OpenMC simulation."),
         ),
         setting.Setting(
             CONF_N_INACTIVE,
-            default = 10,
-            label = "Number of inactive batches",
-            description=("Defines number of inactive batches to run before recording results"
-            "in an OpenMC simulation."
-            )
+            default=10,
+            label="Number of inactive batches",
+            description=(
+                "Defines number of inactive batches to run before recording results"
+                "in an OpenMC simulation."
+            ),
         ),
         setting.Setting(
             CONF_N_PARTICLES,
-            default = 1000,
-            label = "Number of particles per generation",
-            description=("Defines number of particles to be simulated per generation"
-            "in OpenMC."
-            )
+            default=1000,
+            label="Number of particles per generation",
+            description=("Defines number of particles to be simulated per generation" "in OpenMC."),
         ),
         setting.Setting(
             CONF_TALLY_MESH_DIMENSION,
-            default = [10, 10, 10],
-            label = "Tally mesh dimension in OpenMC",
-            description=("Defines number of mesh cells in each dimension for fission and"
-            "heating tallies."
-            )
+            default=[10, 10, 10],
+            label="Tally mesh dimension in OpenMC",
+            description=(
+                "Defines number of mesh cells in each dimension for fission and" "heating tallies."
+            ),
         ),
         setting.Setting(
             CONF_ENTROPY_MESH_DIMENSION,
-            default = [10, 10, 10],
-            label = "Entropy mesh dimension in OpenMC",
-            description=("Defines number of mesh cells in each dimension for Shannon entropy"
-            "mesh. Used to measure source distribution convergence."
-            )
+            default=[10, 10, 10],
+            label="Entropy mesh dimension in OpenMC",
+            description=(
+                "Defines number of mesh cells in each dimension for Shannon entropy"
+                "mesh. Used to measure source distribution convergence."
+            ),
         ),
         setting.Setting(
             CONF_OPENMC_VERBOSITY,
-            default = 7,
-            label = "Verbosity of OpenMC output",
-            description=("OpenMC verbosity. From OpenMC documentation:"
-                         "1. don’t display any output"
-                         "2. only show OpenMC logo"
-                         "3. all of the above + headers"
-                         "4. all of the above + results"
-                         "5. all of the above + file I/O"
-                         "6. all of the above + timing statistics and initialization messages"
-                         "7. all of the above + k by generation"
-                         "9. all of the above + indicate when each particle starts"
-                         "10. all of the above + event information"
-            )
+            default=7,
+            label="Verbosity of OpenMC output",
+            description=(
+                "OpenMC verbosity. From OpenMC documentation:"
+                "1. don’t display any output"
+                "2. only show OpenMC logo"
+                "3. all of the above + headers"
+                "4. all of the above + results"
+                "5. all of the above + file I/O"
+                "6. all of the above + timing statistics and initialization messages"
+                "7. all of the above + k by generation"
+                "9. all of the above + indicate when each particle starts"
+                "10. all of the above + event information"
+            ),
         ),
         setting.Setting(
             CONF_N_OMP_THREADS,
-            default = os.cpu_count(),
-            label = "Number of OpenMP threads",
-            description=("Number of OpenMP threads to use in OpenMC."
-                         "Defaults to number of hardware threads available."
-            )
+            default=os.cpu_count(),
+            label="Number of OpenMP threads",
+            description=(
+                "Number of OpenMP threads to use in OpenMC."
+                "Defaults to number of hardware threads available."
+            ),
         ),
         setting.Setting(
             CONF_N_MPI_PROCESSES,
-            default = 1,
-            label = "Number of MPI processes",
-            description=("Number of MPI processes to use in OpenMC."
-                         "Each process will load its own copy of the problem geometry,"
-                         "So high numbers of MPI processes can use a lot of memory for"
-                         "complex geometry problems. Using shared-memory OpenMP threads"
-                         "can help mitigate this."
-            )
-        )
+            default=1,
+            label="Number of MPI processes",
+            description=(
+                "Number of MPI processes to use in OpenMC."
+                "Each process will load its own copy of the problem geometry,"
+                "So high numbers of MPI processes can use a lot of memory for"
+                "complex geometry problems. Using shared-memory OpenMP threads"
+                "can help mitigate this."
+            ),
+        ),
     ]
     return settings
 

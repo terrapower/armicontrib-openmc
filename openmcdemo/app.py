@@ -45,9 +45,10 @@ class ARMIOpenMCApp(armi.apps.App):
             armi.__version__
         )
 
+
 class OpenMCDemoPlugin(plugins.ArmiPlugin):
     """Plugin with OpenMC testing hooks"""
-    
+
     @staticmethod
     @plugins.HOOKIMPL
     def defineEntryPoints():

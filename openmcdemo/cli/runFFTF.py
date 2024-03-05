@@ -40,7 +40,7 @@ from armiopenmc.settings import (
     CONF_ENTROPY_MESH_DIMENSION,
     CONF_OPENMC_VERBOSITY,
     CONF_N_OMP_THREADS,
-    CONF_N_MPI_PROCESSES
+    CONF_N_MPI_PROCESSES,
 )
 
 
@@ -106,10 +106,10 @@ class RunFFTF(EntryPoint):
         opts = executionOptions.OpenMCOptions()
         opts.fromReactor(o.r)
         opts.fromUserSettings(o.cs)
-        
+
         # Add custom tallies
         tallies = openmc.Tallies()
-        
+
         # Example custom tally
         mesh = openmc.RegularMesh()
         mesh.lower_left = [-100.0, -100.0, 0.0]
@@ -119,10 +119,10 @@ class RunFFTF(EntryPoint):
         energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure("ARMI33"))
         energyFilter = openmc.EnergyFilter(energyGroupStructure)
         meshFluxTally = openmc.Tally(1, name="custom tally")
-        meshFluxTally.scores = ['flux']
+        meshFluxTally.scores = ["flux"]
         meshFluxTally.filters = [meshFilter, energyFilter]
         tallies.append(meshFluxTally)
-        
+
         opts.addTallies(tallies)
 
         e = OpenMCExecuter(reactor=o.r, options=opts)
@@ -138,7 +138,6 @@ class RunFFTF(EntryPoint):
             norm = 1.0 / max(flux)
 
             return [f * norm for f in flux]
-
 
         def plotFlux(block, benchFlux, mcnpFlux, benchEnergy, title):
             armiEnergy = [e for e in energyGroups.getGroupStructure("ARMI33")]
@@ -160,7 +159,7 @@ class RunFFTF(EntryPoint):
             flux[-1] = flux[-2]
             energy = armiEnergy
             flux = normalizeFlux(flux, energy)
-            
+
             flux = np.array(flux).reshape((len(flux),))
 
             plt.step(energy, flux, label="ARMI OpenMC", where="post")
@@ -175,7 +174,6 @@ class RunFFTF(EntryPoint):
         midBenchEnergy = [erg * 1000.0 for erg in BENCH_MIDPLANE_ENERGY]
         lowBenchEnergy = [erg * 1000.0 for erg in BENCH_LOWER_ENERGY]
 
-
         grid = o.r.core.spatialGrid
         locator = grid.getLocatorFromRingAndPos(2, 6)
         a = o.r.core.childrenByLocator[locator]
@@ -185,8 +183,21 @@ class RunFFTF(EntryPoint):
         mid_block = test_blocks[3]
         low_block = test_blocks[1]
 
-        plotFlux(mid_block, BENCH_MIDPLANE_FLUX, MCNP_MIDPLANE_FLUX, midBenchEnergy, "Normalized Flux at Core Midplane")
-        plotFlux(low_block, BENCH_LOWER_FLUX, MCNP_LOWER_FLUX, lowBenchEnergy, "Normalized Flux at 80cm Below Core Midplane")
+        plotFlux(
+            mid_block,
+            BENCH_MIDPLANE_FLUX,
+            MCNP_MIDPLANE_FLUX,
+            midBenchEnergy,
+            "Normalized Flux at Core Midplane",
+        )
+        plotFlux(
+            low_block,
+            BENCH_LOWER_FLUX,
+            MCNP_LOWER_FLUX,
+            lowBenchEnergy,
+            "Normalized Flux at 80cm Below Core Midplane",
+        )
+
 
 """
 Published benchmark results for plotting in spectra.py
