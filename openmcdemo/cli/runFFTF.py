@@ -109,10 +109,12 @@ class RunFFTF(EntryPoint):
         
         # Add custom tallies
         tallies = openmc.Tallies()
-        mesh = openmc.RectilinearMesh()
-        mesh.x_grid = np.array([12.051/2,12.051*5/2])
-        mesh.y_grid = np.array([-12.051*3**.5,0.0])
-        mesh.z_grid = np.array([0.0,298.45/2-81,298.45/2-79,298.45/2-1,298.45/2+1,298.45])
+        
+        # Example custom tally
+        mesh = openmc.RegularMesh()
+        mesh.lower_left = [-100.0, -100.0, 0.0]
+        mesh.upper_right = [100.0, 100.0, 300.0]
+        mesh.dimension = [500, 500, 1]
         meshFilter = openmc.MeshFilter(mesh=mesh)
         energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure("ARMI33"))
         energyFilter = openmc.EnergyFilter(energyGroupStructure)
@@ -120,6 +122,7 @@ class RunFFTF(EntryPoint):
         meshFluxTally.scores = ['flux']
         meshFluxTally.filters = [meshFilter, energyFilter]
         tallies.append(meshFluxTally)
+        
         opts.addTallies(tallies)
 
         e = OpenMCExecuter(reactor=o.r, options=opts)
