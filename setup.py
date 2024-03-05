@@ -20,7 +20,7 @@ with open("README.md") as f:
 
 setup(
     name="armicontrib-openmc",
-    version="1.0.1",
+    version="1.1.0",
     description=("ARMI plugin for neutronics analysis with OpenMC."),
     author="TerraPower LLC",
     author_email="armi-devs@terrapower.com",
