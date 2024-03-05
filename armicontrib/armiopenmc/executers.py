@@ -97,9 +97,11 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
                 f"Cannot find executable at {self.options.executablePath}. " f"Update run settings."
             )
 
-        openmc.run(threads=self.options.nOMPThreads,
-                   mpi_args=['mpiexec','-n',str(self.options.nMPIProcesses), '--bind-to', 'none'],
-                   openmc_exec=self.options.executablePath)
+        openmc.run(
+            threads=self.options.nOMPThreads,
+            mpi_args=["mpiexec", "-n", str(self.options.nMPIProcesses), "--bind-to", "none"],
+            openmc_exec=self.options.executablePath,
+        )
 
         return True
 
@@ -107,5 +109,5 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
     def _readOutput(self):
         """Read output."""
         reader = outputReaders.OpenMCReader(self.options)
-        #reader.apply(self.r)
+        # reader.apply(self.r)
         return reader

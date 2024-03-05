@@ -83,20 +83,18 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
     def fromReactor(self, reactor):
         """Set options from an ARMI composite to be modeled (often a ``Core``)"""
         globalFluxInterface.GlobalFluxOptions.fromReactor(self, reactor)
-        self.inputFile = None #f"{self.label}.inp"
-        self.outputFile = None #f"{self.label}.out"
+        self.inputFile = None  # f"{self.label}.inp"
+        self.outputFile = None  # f"{self.label}.out"
 
     def resolveDerivedOptions(self):
         """
         Set other options that are dependent on previous phases of loading options.
         """
         globalFluxInterface.GlobalFluxOptions.resolveDerivedOptions(self)
-        self.extraInputFiles.extend(["geometry.xml",
-                                     "materials.xml",
-                                     "settings.xml",
-                                     "tallies.xml",
-                                     "plots.xml"])
-        self.outputFile = "statepoint."+str(self.nBatches)+".h5"
+        self.extraInputFiles.extend(
+            ["geometry.xml", "materials.xml", "settings.xml", "tallies.xml", "plots.xml"]
+        )
+        self.outputFile = "statepoint." + str(self.nBatches) + ".h5"
         if self.existingFixedSource:
             self.extraInputFiles.append((self.existingFixedSource, self.existingFixedSource))
         if self.isRestart:
