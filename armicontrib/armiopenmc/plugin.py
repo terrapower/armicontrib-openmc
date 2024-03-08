@@ -24,8 +24,8 @@ from armi import plugins
 from armi import interfaces
 from armi.physics.neutronics.globalFlux import globalFluxInterface
 
-from armiopenmc import settings
-from armiopenmc import schedulers
+from armicontrib.armiopenmc import settings
+from armicontrib.armiopenmc import schedulers
 
 ORDER = interfaces.STACK_ORDER.FLUX
 

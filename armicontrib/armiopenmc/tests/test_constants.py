@@ -14,7 +14,7 @@
 """Tests of the constants module."""
 import unittest
 
-from armiopenmc import const
+from armicontrib.armiopenmc import const
 
 
 class TestConstants(unittest.TestCase):
