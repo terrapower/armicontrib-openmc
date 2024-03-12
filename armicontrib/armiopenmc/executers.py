@@ -37,18 +37,10 @@ armi.physics.neutronics.globalFlux.globalFluxInterface.GlobalFluxExecuter : ARMI
 that runs OpenMC on a core.
 """
 
-import os
-import subprocess
-
-from armi.utils import directoryChangers
-from armi.utils import outputCache
-from armi.reactor import composites
-from armi.physics import executers
 from armi.physics.neutronics.globalFlux import globalFluxInterface
 
 from . import inputWriters
 from . import outputReaders
-from . import executionOptions
 from armi.utils import codeTiming
 
 import openmc.lib

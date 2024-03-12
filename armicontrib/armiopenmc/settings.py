@@ -25,13 +25,10 @@ ARMI built-in ``neutronicsKernel`` setting:
     * "OpenMC": Enable OpenMC.
 """
 import os
-import shutil
 
 from armi.physics.neutronics import settings as neutronicsSettings
 from armi.settings import setting
-from armi.operators import settingsValidation
 from armi.operators.settingsValidation import Query
-from armi.physics import neutronics
 
 
 CONF_EPS_BURN_TIME = "epsBurnTime"

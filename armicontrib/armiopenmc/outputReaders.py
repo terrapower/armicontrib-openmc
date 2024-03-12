@@ -30,8 +30,6 @@ import openmc
 from armi.reactor import reactors
 from armi import runLog
 
-from armi.bookkeeping.db import Database3
-
 from .executionOptions import OpenMCOptions
 
 
