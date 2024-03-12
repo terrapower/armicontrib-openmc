@@ -27,11 +27,11 @@ from armi.settings import caseSettings
 from armi.physics.neutronics import energyGroups
 from armi.reactor.flags import Flags
 from armi.physics.neutronics.settings import CONF_GROUP_STRUCTURE
-from armiopenmc.executers import OpenMCExecuter
-from armiopenmc.inputWriters import parseEnergyGroupStructure
-from armiopenmc import executionOptions
+from armicontrib.armiopenmc.executers import OpenMCExecuter
+from armicontrib.armiopenmc.inputWriters import parseEnergyGroupStructure
+from armicontrib.armiopenmc import executionOptions
 
-from armiopenmc.settings import (
+from armicontrib.armiopenmc.settings import (
     CONF_OPENMC_PATH,
     CONF_N_PARTICLES,
     CONF_N_BATCHES,
