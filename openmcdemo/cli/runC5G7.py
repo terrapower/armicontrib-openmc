@@ -110,4 +110,3 @@ class RunC5G7(EntryPoint):
         e = OpenMCExecuter(reactor=o.r, options=opts)
 
         e.run()
-
