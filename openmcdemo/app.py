@@ -17,7 +17,7 @@ import armi
 from armi import plugins
 
 
-from openmcdemo.cli import runFFTF
+from openmcdemo.cli import runFFTF, runC5G7
 
 
 class ARMIOpenMCApp(armi.apps.App):
@@ -54,4 +54,5 @@ class OpenMCDemoPlugin(plugins.ArmiPlugin):
     def defineEntryPoints():
         return [
             runFFTF.RunFFTF,
+            runC5G7.RunC5G7,
         ]
