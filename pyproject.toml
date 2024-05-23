@@ -9,7 +9,7 @@ version = "1.1.0"
 description = "ARMI plugin for neutronics analysis with OpenMC."
 license = {file = "LICENSE.md"}
 requires-python = ">3.6"
-readme = "README.rst"
+readme = "README.md"
 authors = [
     { name="TerraPower, LLC", email="armi-devs@terrapower.com" },
 ]
