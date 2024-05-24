@@ -33,22 +33,17 @@ armi.physics.neutronics.globalFlux.globalFluxInterface.GlobalFluxExecuter : ARMI
 
 ~armicontrib.armiopenmc.executionOptions.OpenMCOptions : Options that control the behavior of the Executer and its components.
 
-~armicontrib.dif3d.schedulers.OpenMCCoreEvaluation : One particular client of this code
+~armicontrib.armiopenmc.schedulers.OpenMCCoreEvaluation : One particular client of this code
 that runs OpenMC on a core.
 """
 
-import subprocess
-
-from armi.utils import directoryChangers
-from armi.utils import outputCache
-from armi.reactor import composites
-from armi.physics import executers
 from armi.physics.neutronics.globalFlux import globalFluxInterface
 
 from . import inputWriters
 from . import outputReaders
-from . import executionOptions
 from armi.utils import codeTiming
+
+import openmc.lib
 
 
 class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
@@ -60,7 +55,7 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
 
     Parameters
     ----------
-    options: executionOptions.Dif3dOptions
+    options: executionOptions.OpenMCOptions
         run settings
     armiObj : composite.ArmiObject
         The object representing the scope of the OpenMC run (e.g. the Core or SFP, etc.)
@@ -80,11 +75,7 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
         Actually just builds the OpenMC model via the OpenMC API for now.
         """
         writer = inputWriters.OpenMCWriter(self.r, self.options)
-        writer.write(None)
-
-        # TODO: maybe optionally write the openmc model to xml
-        # with open(self.options.inputFile, "w") as inp:
-        #   writer.write(inp)
+        writer.write()
 
     @codeTiming.timed
     def _execute(self):
@@ -92,15 +83,17 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
         Execute OpenMC on an existing input model. Produce output files.
         """
         globalFluxInterface.GlobalFluxExecuter._execute(self)
-        print("SKIPPING")
-        return True
 
         if self.options.executablePath is None:
             raise ValueError(
                 f"Cannot find executable at {self.options.executablePath}. " f"Update run settings."
             )
-        with open(self.options.outputFile, "w") as outF:
-            openmc.run()
+
+        openmc.run(
+            threads=self.options.nOMPThreads,
+            mpi_args=["mpiexec", "-n", str(self.options.nMPIProcesses), "--bind-to", "none"],
+            openmc_exec=self.options.executablePath,
+        )
 
         return True
 
@@ -108,4 +101,5 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
     def _readOutput(self):
         """Read output."""
         reader = outputReaders.OpenMCReader(self.options)
+        # reader.apply(self.r)
         return reader

@@ -2,5 +2,35 @@
 requires = ["setuptools>=40.8.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+
+[project]
+name = "armicontrib-openmc"
+version = "1.1.0"
+description = "ARMI plugin for neutronics analysis with OpenMC."
+license = {file = "LICENSE.md"}
+requires-python = ">3.6"
+readme = "README.md"
+authors = [
+    { name="TerraPower, LLC", email="armi-devs@terrapower.com" },
+]
+
+dependencies = [
+    "armi>=0.3.0",
+    "openmc>=0.13.0"
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+[project.urls]
+Repository = "https://github.com/terrapower/armicontrib-openmc"
+"Bug Tracker" = "https://github.com/terrapower/armicontrib-openmc/issues"
+
 [tool.black]
 line-length = 100
+
+[tool.setuptools.packages]
+find = {}

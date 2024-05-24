@@ -1,7 +1,45 @@
+# No non-source python resources.
 *.pyc
+*.pyd
+*.pyo
+*.pyx
+
+# No build artifacts
+*.dll
+*.lib
+/bin
+bin/*
+build
+dist-*/
+dist/
+wheelhouse
+
+# No workspace crumbs.
+*.egg-info/
+*.sublime-project
+*.sublime-workspace
+*~
+.*.swp
+.idea/
+.metadata
 .project
 .pydevproject
-*.egg-info
-/doc/_build
+.settings
+.vscode
 /doc/.apidocs
+/doc/_build
 
+# Misc. exclusions
+*.avi
+*.diff
+*.h5
+*.html
+*.mp4
+*.png
+*.ppm
+*.txt
+*.xml
+
+# Local things
+logs/
+temp.py

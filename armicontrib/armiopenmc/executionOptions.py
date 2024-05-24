@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import shutil
+import openmc
 
-from armi import runLog
 from armi.physics.neutronics.globalFlux import globalFluxInterface
 
 from armi.settings import caseSettings
@@ -35,6 +34,16 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.libDataFile = neutronics.ISOTXS
         self.label = label if label else "openmc"
         self.executablePath = None
+        self.nParticles = None
+        self.nBatches = None
+        self.nInactiveBatches = None
+        self.tallyMeshDimension = None
+        self.entropyMeshDimension = None
+        self.energyGroupStructure = None
+        self.openmcVerbosity = None
+        self.power = None
+        self.nOMPThreads = None
+        self.nMPIProcesses = None
         self.runDir = None
         self.numberMeshPerEdge = 1
         self.neutronicsOutputsToSave = None
@@ -42,19 +51,26 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.existingFixedSource = None
         self.bcCoefficient = None
         self.detailedDb: Optional[str] = None
-        # When writing the neutronics-mesh database, we need the actual case Settings
-        # object in order for that database to be complete and capable of being read.
-        # Storing the full cs object here seems contrary to the goal of Options classes
-        # to decouple Executers from raw Settings. However, here we need the **object**,
-        # rather than the settings that it contains. Future work to the ARMI framework
-        # may relax the need for case settings in a database file to support loading, in
-        # which case this would no longer be required.
         self.csObject: Optional[caseSettings.Settings] = None
+        self.Tallies: openmc.Tallies = None
 
     def fromUserSettings(self, cs: caseSettings.Settings):
         """Set options from user settings"""
         globalFluxInterface.GlobalFluxOptions.fromUserSettings(self, cs)
+        self.executablePath = shutil.which(cs[settings.CONF_OPENMC_PATH])
+        self.nParticles = cs[settings.CONF_N_PARTICLES]
+        self.nBatches = cs[settings.CONF_N_BATCHES]
+        self.nInactiveBatches = cs[settings.CONF_N_INACTIVE]
+        self.tallyMeshDimension = cs[settings.CONF_TALLY_MESH_DIMENSION]
+        self.entropyMeshDimension = cs[settings.CONF_ENTROPY_MESH_DIMENSION]
+        self.groupStructure = cs[gsettings.CONF_GROUP_STRUCTURE]
+        self.openmcVerbosity = cs[settings.CONF_OPENMC_VERBOSITY]
+        self.power = cs.getSetting("power").value
+        self.nOMPThreads = cs[settings.CONF_N_OMP_THREADS]
+        self.nMPIProcesses = cs[settings.CONF_N_MPI_PROCESSES]
+
         self.setRunDirFromCaseTitle(cs.caseTitle)
+
         self.neutronicsOutputsToSave = cs[settings.CONF_NEUTRONICS_OUTPUTS_TO_SAVE]
         self.existingFixedSource = cs[gsettings.CONF_EXISTING_FIXED_SOURCE]
         self.epsFissionSourceAvg = cs[gsettings.CONF_EPS_FSAVG]
@@ -65,16 +81,28 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
     def fromReactor(self, reactor):
         """Set options from an ARMI composite to be modeled (often a ``Core``)"""
         globalFluxInterface.GlobalFluxOptions.fromReactor(self, reactor)
-        self.inputFile = f"{self.label}.inp"
-        self.outputFile = f"{self.label}.out"
+        self.inputFile = None  # f"{self.label}.inp"
+        self.outputFile = None  # f"{self.label}.out"
 
     def resolveDerivedOptions(self):
         """
         Set other options that are dependent on previous phases of loading options.
         """
         globalFluxInterface.GlobalFluxOptions.resolveDerivedOptions(self)
+        self.extraInputFiles.extend(
+            ["geometry.xml", "materials.xml", "settings.xml", "tallies.xml", "plots.xml"]
+        )
+        self.outputFile = "statepoint." + str(self.nBatches) + ".h5"
         if self.existingFixedSource:
             self.extraInputFiles.append((self.existingFixedSource, self.existingFixedSource))
         if self.isRestart:
             for _label, fnames in fileSetsHandler.specifyRestartFiles(self).items():
                 self.extraInputFiles.extend([(f, f) for f in fnames])
+
+    def addTallies(self, Tallies: openmc.Tallies):
+        """
+        Tallies to use in the openmc run in addition to the default tallies.
+        Specified using the openmc python api.
+        Note: Beware reusing tally ids used by the default tallies (101-105).
+        """
+        self.Tallies = Tallies
