@@ -655,16 +655,34 @@ def _buildComponentMaterial(component):
     )
 
     componentNuclides = component.getNuclides()
+    
+    # Expand any NaturalNuclideBases out to their NaturalIsotopics
+    while any([isinstance(nuclideBases.byName[nuclideName], nuclideBases.NaturalNuclideBase) for nuclideName in componentNuclides]):
+        nuclidesToAdd = []
+        for i, nuclideName in enumerate(componentNuclides):
+            nuclide = nuclideBases.byName[nuclideName]
+            if isinstance(nuclide, nuclideBases.NaturalNuclideBase):
+                componentNuclides.remove(nuclideName)
+                nuclidesToAdd.extend([n.name for n in nuclide.getNaturalIsotopics()])
+        componentNuclides.extend(nuclidesToAdd)
+        
     componentNuclideDensities = component.getNuclideNumberDensities(componentNuclides)
     totalComponentNuclideDensity = sum(componentNuclideDensities)
 
     for i, nuclideName in enumerate(componentNuclides):
         nuclide = nuclideBases.byName[nuclideName]
-        if nuclide.a > 0:  # ignore lumped fission products and dummy nuclides for now
+        if nuclide.a > 0:
             nuclideGNDSName = openmc.data.gnds_name(Z=nuclide.z, A=nuclide.a)
             componentMaterial.add_nuclide(
                 nuclideGNDSName, componentNuclideDensities[i] / totalComponentNuclideDensity, "ao"
-            )
+            )    
+        #else:
+            #print("")
+            #print("nuclide: " + str(nuclide))
+            #print("component: " + str(component))
+            #print("block: " + str(component.parent))
+            #print("")
+            
     return componentMaterial
 
 
