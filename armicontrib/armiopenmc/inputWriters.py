@@ -667,7 +667,7 @@ def _buildComponentMaterial(component):
         ]
     ):
         newDensities = dict(componentNuclideDensities)
-        for i, nuclideName in enumerate(componentNuclideDensities.keys()):
+        for nuclideName in componentNuclideDensities.keys():
             nuclide = nuclideBases.byName[nuclideName]
             if isinstance(nuclide, nuclideBases.NaturalNuclideBase):
                 elementDensity = componentNuclideDensities[nuclideName]
@@ -699,7 +699,7 @@ def _buildComponentMaterial(component):
             lfps = fpd.createLFPsFromFile()
 
         newDensities = dict(componentNuclideDensities)
-        for i, nuclideName in enumerate(componentNuclideDensities.keys()):
+        for nuclideName in componentNuclideDensities.keys():
             nuclide = nuclideBases.byName[nuclideName]
             if isinstance(nuclide, nuclideBases.LumpNuclideBase):
                 lumpDensity = componentNuclideDensities[nuclideName]
