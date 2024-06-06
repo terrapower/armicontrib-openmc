@@ -658,9 +658,14 @@ def _buildComponentMaterial(component):
     componentNuclideDensities = {}
     for n in componentNuclides:
         componentNuclideDensities[n] = component.getNumberDensity(n)
-    
+
     # Expand any NaturalNuclideBases out to their NaturalIsotopics
-    while any([isinstance(nuclideBases.byName[nuclideName], nuclideBases.NaturalNuclideBase) for nuclideName in componentNuclideDensities.keys()]):
+    while any(
+        [
+            isinstance(nuclideBases.byName[nuclideName], nuclideBases.NaturalNuclideBase)
+            for nuclideName in componentNuclideDensities.keys()
+        ]
+    ):
         newDensities = dict(componentNuclideDensities)
         for i, nuclideName in enumerate(componentNuclideDensities.keys()):
             nuclide = nuclideBases.byName[nuclideName]
@@ -669,24 +674,30 @@ def _buildComponentMaterial(component):
                 del newDensities[nuclideName]
                 for n in nuclide.getNaturalIsotopics():
                     if n.name in newDensities:
-                        newDensities[n.name] += n.abundance*elementDensity
+                        newDensities[n.name] += n.abundance * elementDensity
                     else:
-                        newDensities[n.name] = n.abundance*elementDensity
+                        newDensities[n.name] = n.abundance * elementDensity
         componentNuclideDensities = newDensities
-    
+
     # Expand any LumpedFissionProducts out to nuclides according to referenceFissionProducts
-    if any([isinstance(nuclideBases.byName[nuclideName], nuclideBases.LumpNuclideBase) for nuclideName in componentNuclideDensities.keys()]):
+    if any(
+        [
+            isinstance(nuclideBases.byName[nuclideName], nuclideBases.LumpNuclideBase)
+            for nuclideName in componentNuclideDensities.keys()
+        ]
+    ):
         import io
         from armi.physics.neutronics.fissionProductModel import (
             lumpedFissionProduct,
             REFERENCE_LUMPED_FISSION_PRODUCT_FILE,
         )
+
         with open(REFERENCE_LUMPED_FISSION_PRODUCT_FILE, "r") as LFP_FILE:
             LFP_TEXT = LFP_FILE.read()
             fpd = lumpedFissionProduct.FissionProductDefinitionFile(io.StringIO(LFP_TEXT))
             fpd.fName = REFERENCE_LUMPED_FISSION_PRODUCT_FILE
             lfps = fpd.createLFPsFromFile()
-        
+
         newDensities = dict(componentNuclideDensities)
         for i, nuclideName in enumerate(componentNuclideDensities.keys()):
             nuclide = nuclideBases.byName[nuclideName]
@@ -695,21 +706,25 @@ def _buildComponentMaterial(component):
                 del newDensities[nuclideName]
                 for n in lfps[nuclideName].keys():
                     if n.name in newDensities:
-                        newDensities[n.name] += lfps[nuclideName][n]*lumpDensity
+                        newDensities[n.name] += lfps[nuclideName][n] * lumpDensity
                     else:
-                        newDensities[n.name] = lfps[nuclideName][n]*lumpDensity
+                        newDensities[n.name] = lfps[nuclideName][n] * lumpDensity
         componentNuclideDensities = newDensities
-        
-    totalComponentNuclideDensity = sum([componentNuclideDensities[n] for n in componentNuclideDensities.keys()])
+
+    totalComponentNuclideDensity = sum(
+        [componentNuclideDensities[n] for n in componentNuclideDensities.keys()]
+    )
 
     for nuclideName in componentNuclideDensities.keys():
         nuclide = nuclideBases.byName[nuclideName]
-        if nuclide.a > 0: # Skip dummy nuclides. Natural and Lumped should be taken care of
+        if nuclide.a > 0:  # Skip dummy nuclides. Natural and Lumped should be taken care of
             nuclideGNDSName = openmc.data.gnds_name(Z=nuclide.z, A=nuclide.a, m=nuclide.state)
             componentMaterial.add_nuclide(
-                nuclideGNDSName, componentNuclideDensities[nuclideName] / totalComponentNuclideDensity, "ao"
-            )    
-          
+                nuclideGNDSName,
+                componentNuclideDensities[nuclideName] / totalComponentNuclideDensity,
+                "ao",
+            )
+
     return componentMaterial
 
 
