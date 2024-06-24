@@ -179,7 +179,10 @@ class OpenMCWriter:
 
         tallyMesh = openmc.RegularMesh()
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
-        tallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
+        if self.r.core.symmetry.domain == armi.reactor.geometry.DomainType.QUARTER_CORE:
+            tallyMesh.lower_left = [0, 0, 0]
+        else:
+            tallyMesh.lower_left = [-bbWidth, -bbWidth, 0]
         tallyMesh.upper_right = [bbWidth, bbWidth, bbHeight]
         tallyMesh.dimension = tuple(self.options.tallyMeshDimension)
         meshFilter = openmc.MeshFilter(mesh=tallyMesh, filter_id=101)
@@ -192,7 +195,7 @@ class OpenMCWriter:
 
         fissionTally = openmc.Tally(101, name="fission rate")
         fissionTally.scores = ["fission"]
-        fissionTally.nuclides = ["U235", "U238"]
+        fissionTally.nuclides = ["U235", "U238", "total"]
         fissionTally.filters = [meshFilter]
         tallies.append(fissionTally)
 
@@ -224,9 +227,9 @@ class OpenMCWriter:
         """
         core = self.r.core
         numRings = core.numRings
-        boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type="vacuum")
+        boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type="reflective")
         boundingCellTopPlane = openmc.ZPlane(
-            z0=max([assembly.getHeight() for assembly in core]), boundary_type="vacuum"
+            z0=max([assembly.getHeight() for assembly in core]), boundary_type="reflective"
         )
 
         if core.geomType == GeomType.HEX:
@@ -676,9 +679,21 @@ def _buildComponentMaterial(component):
                 compNucDens[nuclideName] / totalComponentNuclideDensity,
                 "ao",
             )
+    
+    componentMaterial = _addThermalScattering(componentMaterial)
 
     return componentMaterial
 
+def _addThermalScattering(material):
+    if any([n.name == 'H1' for n in material.nuclides]) and any([n.name == 'O16' for n in material.nuclides]):
+        material.add_s_alpha_beta('c_H_in_H2O')
+    if any([n.name == 'Al27' for n in material.nuclides]):
+        material.add_s_alpha_beta('c_Al27')
+    if any([n.name == 'U238' for n in material.nuclides]) and any([n.name == 'O16' for n in material.nuclides]):
+        material.add_s_alpha_beta('c_U_in_UO2')
+        material.add_s_alpha_beta('c_O_in_UO2')
+    return material
+        
 
 def _expandNaturalNuclides(compNucDens):
     # Expand any NaturalNuclideBases out to their NaturalIsotopics

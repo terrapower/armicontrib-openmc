@@ -30,6 +30,7 @@ from armi.physics.neutronics.settings import CONF_GROUP_STRUCTURE
 from armicontrib.armiopenmc.executers import OpenMCExecuter
 from armicontrib.armiopenmc.inputWriters import parseEnergyGroupStructure
 from armicontrib.armiopenmc import executionOptions
+from armi.reactor.converters.blockConverters import MultipleComponentMerger
 
 from armicontrib.armiopenmc.settings import (
     CONF_OPENMC_PATH,
@@ -102,10 +103,47 @@ class RunC5G7(EntryPoint):
 
         o = operators.factory(self.cs)
         o.r = reactors.loadFromCs(self.cs)
+        
+        '''
+        for block in o.r.core.getBlocks():
+            if block.getType() == 'uo2':
+                fuelComponentNames = []
+                innerModeratorGuideTubeComponentNames = []
+                innerModeratorFCComponentNames = []
+                for component in block:
+                    if component.name in ['gap 1', 'gap 2', 'zirconium clad', 'aluminum clad']:
+                        fuelComponentNames.append(component.getName())
+                    #if component.name in ['guide tube']:
+                        #innerModeratorGuideTubeComponentNames.append(component.getName())
+                    #if component.name in ['fission chamber']:
+                        #innerModeratorFCComponentNames.append(component.getName())
+                if len(fuelComponentNames) > 0:
+                    block = MultipleComponentMerger(sourceBlock=block, soluteNames=fuelComponentNames, solventName='fuel').convert()
+                #if len(innerModeratorGuideTubeComponentNames) > 0:
+                    #block = MultipleComponentMerger(sourceBlock=block, soluteNames=innerModeratorGuideTubeComponentNames, solventName='inner moderator guide tube').convert()
+                #if len(innerModeratorFCComponentNames) > 0:
+                    #block = MultipleComponentMerger(sourceBlock=block, soluteNames=innerModeratorFCComponentNames, solventName='inner moderator FC').convert()
+        '''           
 
         opts = executionOptions.OpenMCOptions()
         opts.fromReactor(o.r)
         opts.fromUserSettings(o.cs)
+
+        # Add custom tallies
+        tallies = openmc.Tallies()
+
+        # Example custom tally
+        mesh = openmc.RegularMesh()
+        mesh.lower_left = [0.0, 0.0, 0.0]
+        mesh.upper_right = [64.26, 64.26, max([assembly.getHeight() for assembly in o.r.core])]
+        mesh.dimension = [1500, 1500, 1]
+        meshFilter = openmc.MeshFilter(mesh=mesh)
+        meshFluxTally = openmc.Tally(1, name="custom tally")
+        meshFluxTally.scores = ["absorption"]
+        meshFluxTally.filters = [meshFilter]
+        tallies.append(meshFluxTally)
+
+        opts.addTallies(tallies)
 
         e = OpenMCExecuter(reactor=o.r, options=opts)
 
