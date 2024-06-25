@@ -24,7 +24,7 @@ import math
 
 import armi
 from armi import runLog
-from armi.nucDirectory import nuclideBases
+from armi.nucDirectory import nuclideBases as nb
 from armi.physics.neutronics import energyGroups
 from armi.reactor import systemLayoutInput
 from armi.reactor.components import basicShapes, complexShapes
@@ -655,77 +655,73 @@ def _buildComponentMaterial(component):
     )
 
     componentNuclides = component.getNuclides()
-    componentNuclideDensities = {}
+    compNucDens = {}  # Component nuclide densities. Shortened for readability
     for n in componentNuclides:
-        componentNuclideDensities[n] = component.getNumberDensity(n)
+        compNucDens[n] = component.getNumberDensity(n)
+ 
+    if any([isinstance(nb.byName[nuc], nb.NaturalNuclideBase) for nuc in compNucDens.keys()]):
+        compNucDens = _expandNaturalNuclides(compNucDens)
 
-    # Expand any NaturalNuclideBases out to their NaturalIsotopics
-    while any(
-        [
-            isinstance(nuclideBases.byName[nuclideName], nuclideBases.NaturalNuclideBase)
-            for nuclideName in componentNuclideDensities.keys()
-        ]
-    ):
-        newDensities = dict(componentNuclideDensities)
-        for nuclideName in componentNuclideDensities.keys():
-            nuclide = nuclideBases.byName[nuclideName]
-            if isinstance(nuclide, nuclideBases.NaturalNuclideBase):
-                elementDensity = componentNuclideDensities[nuclideName]
-                del newDensities[nuclideName]
-                for n in nuclide.getNaturalIsotopics():
-                    if n.name in newDensities:
-                        newDensities[n.name] += n.abundance * elementDensity
-                    else:
-                        newDensities[n.name] = n.abundance * elementDensity
-        componentNuclideDensities = newDensities
+    if any([isinstance(nb.byName[nuc], nb.LumpNuclideBase) for nuc in compNucDens.keys()]):
+        compNucDens = _expandLumpedNuclides(compNucDens)
 
-    # Expand any LumpedFissionProducts out to nuclides according to referenceFissionProducts
-    if any(
-        [
-            isinstance(nuclideBases.byName[nuclideName], nuclideBases.LumpNuclideBase)
-            for nuclideName in componentNuclideDensities.keys()
-        ]
-    ):
-        import io
-        from armi.physics.neutronics.fissionProductModel import (
-            lumpedFissionProduct,
-            REFERENCE_LUMPED_FISSION_PRODUCT_FILE,
-        )
+    totalComponentNuclideDensity = sum([compNucDens[n] for n in compNucDens.keys()])
 
-        with open(REFERENCE_LUMPED_FISSION_PRODUCT_FILE, "r") as LFP_FILE:
-            LFP_TEXT = LFP_FILE.read()
-            fpd = lumpedFissionProduct.FissionProductDefinitionFile(io.StringIO(LFP_TEXT))
-            fpd.fName = REFERENCE_LUMPED_FISSION_PRODUCT_FILE
-            lfps = fpd.createLFPsFromFile()
-
-        newDensities = dict(componentNuclideDensities)
-        for nuclideName in componentNuclideDensities.keys():
-            nuclide = nuclideBases.byName[nuclideName]
-            if isinstance(nuclide, nuclideBases.LumpNuclideBase):
-                lumpDensity = componentNuclideDensities[nuclideName]
-                del newDensities[nuclideName]
-                for n in lfps[nuclideName].keys():
-                    if n.name in newDensities:
-                        newDensities[n.name] += lfps[nuclideName][n] * lumpDensity
-                    else:
-                        newDensities[n.name] = lfps[nuclideName][n] * lumpDensity
-        componentNuclideDensities = newDensities
-
-    totalComponentNuclideDensity = sum(
-        [componentNuclideDensities[n] for n in componentNuclideDensities.keys()]
-    )
-
-    for nuclideName in componentNuclideDensities.keys():
-        nuclide = nuclideBases.byName[nuclideName]
+    for nuclideName in compNucDens.keys():
+        nuclide = nb.byName[nuclideName]
         if nuclide.a > 0:  # Skip dummy nuclides. Natural and Lumped should be taken care of
             nuclideGNDSName = openmc.data.gnds_name(Z=nuclide.z, A=nuclide.a, m=nuclide.state)
             componentMaterial.add_nuclide(
                 nuclideGNDSName,
-                componentNuclideDensities[nuclideName] / totalComponentNuclideDensity,
+                compNucDens[nuclideName] / totalComponentNuclideDensity,
                 "ao",
             )
 
     return componentMaterial
+
+
+def _expandNaturalNuclides(compNucDens):
+    # Expand any NaturalNuclideBases out to their NaturalIsotopics
+    newDensities = dict(compNucDens)
+    for nuclideName in compNucDens.keys():
+        nuclide = nb.byName[nuclideName]
+        if isinstance(nuclide, nb.NaturalNuclideBase):
+            elementDensity = compNucDens[nuclideName]
+            del newDensities[nuclideName]
+            for n in nuclide.getNaturalIsotopics():
+                if n.name in newDensities:
+                    newDensities[n.name] += n.abundance * elementDensity
+                else:
+                    newDensities[n.name] = n.abundance * elementDensity
+    return newDensities
+
+
+def _expandLumpedNuclides(compNucDens):
+    # Expand any LumpedFissionProducts out to nuclides according to referenceFissionProducts
+    import io
+    from armi.physics.neutronics.fissionProductModel import (
+        lumpedFissionProduct,
+        REFERENCE_LUMPED_FISSION_PRODUCT_FILE,
+    )
+
+    with open(REFERENCE_LUMPED_FISSION_PRODUCT_FILE, "r") as LFP_FILE:
+        LFP_TEXT = LFP_FILE.read()
+        fpd = lumpedFissionProduct.FissionProductDefinitionFile(io.StringIO(LFP_TEXT))
+        fpd.fName = REFERENCE_LUMPED_FISSION_PRODUCT_FILE
+        lfps = fpd.createLFPsFromFile()
+
+    newDensities = dict(compNucDens)
+    for nuclideName in compNucDens.keys():
+        nuclide = nb.byName[nuclideName]
+        if isinstance(nuclide, nb.LumpNuclideBase):
+            lumpDensity = compNucDens[nuclideName]
+            del newDensities[nuclideName]
+            for n in lfps[nuclideName].keys():
+                if n.name in newDensities:
+                    newDensities[n.name] += lfps[nuclideName][n] * lumpDensity
+                else:
+                    newDensities[n.name] = lfps[nuclideName][n] * lumpDensity
+    return newDensities
 
 
 def _buildCellRegion(component, origin=(0.0, 0.0), outsideBuffer=0.0):
