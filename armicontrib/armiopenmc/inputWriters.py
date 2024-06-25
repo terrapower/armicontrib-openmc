@@ -658,7 +658,7 @@ def _buildComponentMaterial(component):
     compNucDens = {}  # Component nuclide densities. Shortened for readability
     for n in componentNuclides:
         compNucDens[n] = component.getNumberDensity(n)
- 
+
     if any([isinstance(nb.byName[nuc], nb.NaturalNuclideBase) for nuc in compNucDens.keys()]):
         compNucDens = _expandNaturalNuclides(compNucDens)
 
