@@ -653,9 +653,7 @@ def _buildComponentMaterial(component):
     if component.material.name == "Void":
         return None
     componentMaterial = openmc.Material(name=component.material.name)
-    componentMaterial.set_density(
-        "g/cm3", component.material.getProperty("pseudoDensity", Tc=component.temperatureInC)
-    )
+    componentMaterial.set_density("g/cm3", component.density())
 
     componentNuclides = component.getNuclides()
     compNucDens = {}  # Component nuclide densities. Shortened for readability
