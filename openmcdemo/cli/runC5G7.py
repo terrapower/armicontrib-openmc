@@ -42,6 +42,7 @@ from armicontrib.armiopenmc.settings import (
     CONF_OPENMC_VERBOSITY,
     CONF_N_OMP_THREADS,
     CONF_N_MPI_PROCESSES,
+    CONF_VERTICAL_SYMMETRY
 )
 
 
@@ -64,6 +65,7 @@ class RunC5G7(EntryPoint):
         self.createOptionFromSetting(CONF_OPENMC_VERBOSITY)
         self.createOptionFromSetting(CONF_N_OMP_THREADS)
         self.createOptionFromSetting(CONF_N_MPI_PROCESSES)
+        self.createOptionFromSetting(CONF_VERTICAL_SYMMETRY)
         self.parser.add_argument(
             "--inputs-only",
             action="store_true",

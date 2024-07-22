@@ -45,6 +45,7 @@ CONF_ENTROPY_MESH_DIMENSION = "entropyMeshDimension"
 CONF_OPENMC_VERBOSITY = "openmcVerbosity"
 CONF_N_OMP_THREADS = "nOMPThreads"
 CONF_N_MPI_PROCESSES = "nMPIProcesses"
+CONF_VERTICAL_SYMMETRY = "verticalSymmetry"
 
 
 CONF_OPT_OPENMC = "OpenMC"
@@ -166,6 +167,17 @@ def defineSettings():
                 "So high numbers of MPI processes can use a lot of memory for"
                 "complex geometry problems. Using shared-memory OpenMP threads"
                 "can help mitigate this."
+            ),
+        ),
+        setting.Setting(
+            CONF_VERTICAL_SYMMETRY,
+            default=False,
+            label="Use vertical reactor symmetry in OpenMC run.",
+            description=(
+                "If enabled, the OpenMC geometry will be generated with a reflective"
+                 "bottom surface, implying vertical symmetry of the reactor."
+                "This is a lazy way to implement what should eventually be a new"
+                "DomainType in ARMI. So far, it is only necessary for the C5G7 benchmark."
             ),
         ),
     ]

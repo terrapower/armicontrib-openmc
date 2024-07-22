@@ -227,9 +227,13 @@ class OpenMCWriter:
         """
         core = self.r.core
         numRings = core.numRings
-        boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type="reflective")
+        if self.options.verticalSymmetry:
+            bottomBoundaryType = "reflective"
+        else:
+            bottomBoundaryType = "vacuum"
+        boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type=bottomBoundaryType)
         boundingCellTopPlane = openmc.ZPlane(
-            z0=max([assembly.getHeight() for assembly in core]), boundary_type="reflective"
+            z0=max([assembly.getHeight() for assembly in core]), boundary_type="vacuum"
         )
 
         if core.geomType == GeomType.HEX:

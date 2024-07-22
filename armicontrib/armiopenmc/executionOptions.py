@@ -44,6 +44,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.power = None
         self.nOMPThreads = None
         self.nMPIProcesses = None
+        self.verticalSymmetry = None
         self.runDir = None
         self.numberMeshPerEdge = 1
         self.neutronicsOutputsToSave = None
@@ -68,6 +69,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.power = cs.getSetting("power").value
         self.nOMPThreads = cs[settings.CONF_N_OMP_THREADS]
         self.nMPIProcesses = cs[settings.CONF_N_MPI_PROCESSES]
+        self.verticalSymmetry = cs[settings.CONF_VERTICAL_SYMMETRY]
 
         self.setRunDirFromCaseTitle(cs.caseTitle)
 
