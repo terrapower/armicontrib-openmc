@@ -681,21 +681,12 @@ def _buildComponentMaterial(component):
                 compNucDens[nuclideName] / totalComponentNuclideDensity,
                 "ao",
             )
-    
-    componentMaterial = _addThermalScattering(componentMaterial)
+
+    # Add thermal scattering data attached to the armi material
+    for tsl in component.material.thermalScatteringLaws:
+        componentMaterial.add_s_alpha_beta(generateThermalScatteringLabel(tsl))
 
     return componentMaterial
-
-def _addThermalScattering(material):
-    if any([n.name == 'H1' for n in material.nuclides]) and any([n.name == 'O16' for n in material.nuclides]):
-        material.add_s_alpha_beta('c_H_in_H2O')
-    if any([n.name == 'Al27' for n in material.nuclides]):
-        material.add_s_alpha_beta('c_Al27')
-    if any([n.name == 'U238' for n in material.nuclides]) and any([n.name == 'O16' for n in material.nuclides]):
-        material.add_s_alpha_beta('c_U_in_UO2')
-        material.add_s_alpha_beta('c_O_in_UO2')
-    return material
-        
 
 def _expandNaturalNuclides(compNucDens):
     # Expand any NaturalNuclideBases out to their NaturalIsotopics
@@ -811,6 +802,31 @@ def _blendHelixComponentsIntoCoolant(block, solventName="coolant"):
             sourceBlock=block, soluteNames=helixComponentNames, solventName=solventName
         ).convert()
     return block
+
+
+def generateThermalScatteringLabel(tsl):
+    """Derive the OpenMC label of a TSL"""
+    first = next(iter(tsl.nbs))
+    if first == nuclideBases.byName["C"] and tsl.compoundName=="reactor-graphite-10P":
+        return "c_Graphite_10p"
+    if first == nuclideBases.byName["C"] and tsl.compoundName=="reactor-graphite-30P":
+        return "c_Graphite_30p"
+    if first == nuclideBases.byName["C"] and tsl.compoundName=="crystalline-graphite":
+        return "c_Graphite"
+    if first == nuclideBases.byName["BE"] and tsl.compoundName=="Be-metal":
+        return "c_Be"
+    if len(tsl.nbs) > 1:
+        # just compound (like SiO2)
+        label = f"c_{tsl.compoundName}"
+    elif isinstance(first, nuclideBases.NaturalNuclideBase):
+        # element in compound
+        label = f"c_{first.element.symbol.capitalize()}_in_{tsl.compoundName}"
+    elif isinstance(first, nuclideBases.NuclideBase):
+        # just isotope
+        label = f"c_{first.name.capitalize()}"
+    else:
+        raise ValueError(f"{tsl} label cannot be generated")
+    return label
 
 
 def parseEnergyGroupStructure(energyGroupStructure):
