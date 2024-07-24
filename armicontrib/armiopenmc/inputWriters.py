@@ -581,18 +581,18 @@ class OpenMCWriter:
             )
         ]
         if isinstance(smallestMult1Component, basicShapes.Circle):
-            innerCylinder = openmc.ZCylinder(r=smallestMult1Component.getDimension("id") / 2 - 0.05)
+            innerCylinder = openmc.ZCylinder(r=smallestMult1Component.getDimension("id") / 2)
             blockLatticeCellRegion = -innerCylinder
         elif isinstance(smallestMult1Component, basicShapes.Hexagon):
             innerHexPrism = openmc.model.hexagonal_prism(
-                edge_length=smallestMult1Component.getDimension("ip") / 3**0.5 - 0.05,
+                edge_length=smallestMult1Component.getDimension("ip") / 3**0.5,
                 orientation="x",
             )
             blockLatticeCellRegion = innerHexPrism
         elif isinstance(smallestMult1Component, basicShapes.Rectangle):
             innerRectPrism = openmc.model.rectangular_prism(
-                width=smallestMult1Component.getDimension("widthInner") - 0.05,
-                height=smallestMult1Component.getDimension("lengthInner") - 0.05,
+                width=smallestMult1Component.getDimension("widthInner"),
+                height=smallestMult1Component.getDimension("lengthInner"),
             )
             blockLatticeCellRegion = innerRectPrism
         else:
