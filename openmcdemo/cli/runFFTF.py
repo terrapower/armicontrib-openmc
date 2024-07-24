@@ -116,7 +116,9 @@ class RunFFTF(EntryPoint):
         mesh.upper_right = [100.0, 100.0, 300.0]
         mesh.dimension = [500, 500, 1]
         meshFilter = openmc.MeshFilter(mesh=mesh)
-        energyGroupStructure = parseEnergyGroupStructure(energyGroups.getGroupStructure("ARMI33"))
+        energyGroupStructure = parseEnergyGroupStructure(
+            energyGroups.getGroupStructure("ARMI33")
+        )
         energyFilter = openmc.EnergyFilter(energyGroupStructure)
         meshFluxTally = openmc.Tally(1, name="custom tally")
         meshFluxTally.scores = ["flux"]

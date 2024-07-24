@@ -92,11 +92,19 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         """
         globalFluxInterface.GlobalFluxOptions.resolveDerivedOptions(self)
         self.extraInputFiles.extend(
-            ["geometry.xml", "materials.xml", "settings.xml", "tallies.xml", "plots.xml"]
+            [
+                "geometry.xml",
+                "materials.xml",
+                "settings.xml",
+                "tallies.xml",
+                "plots.xml",
+            ]
         )
         self.outputFile = "statepoint." + str(self.nBatches) + ".h5"
         if self.existingFixedSource:
-            self.extraInputFiles.append((self.existingFixedSource, self.existingFixedSource))
+            self.extraInputFiles.append(
+                (self.existingFixedSource, self.existingFixedSource)
+            )
         if self.isRestart:
             for _label, fnames in fileSetsHandler.specifyRestartFiles(self).items():
                 self.extraInputFiles.extend([(f, f) for f in fnames])

@@ -58,7 +58,9 @@ class OpenMCReader:
 
     def _check(self):
         if not os.path.exists(self.opts.outputFile):
-            raise RuntimeError("No valid OpenMC output found. Check OpenMC stdout for errors.")
+            raise RuntimeError(
+                "No valid OpenMC output found. Check OpenMC stdout for errors."
+            )
 
     def apply(self, reactor: reactors.Reactor):
         """

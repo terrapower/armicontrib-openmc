@@ -97,7 +97,9 @@ def defineSettings():
             CONF_N_BATCHES,
             default=100,
             label="Number of batches",
-            description=("Defines number of batches to be run in an OpenMC simulation."),
+            description=(
+                "Defines number of batches to be run in an OpenMC simulation."
+            ),
         ),
         setting.Setting(
             CONF_N_INACTIVE,
@@ -112,14 +114,18 @@ def defineSettings():
             CONF_N_PARTICLES,
             default=1000,
             label="Number of particles per generation",
-            description=("Defines number of particles to be simulated per generation" "in OpenMC."),
+            description=(
+                "Defines number of particles to be simulated per generation"
+                "in OpenMC."
+            ),
         ),
         setting.Setting(
             CONF_TALLY_MESH_DIMENSION,
             default=[10, 10, 10],
             label="Tally mesh dimension in OpenMC",
             description=(
-                "Defines number of mesh cells in each dimension for fission and" "heating tallies."
+                "Defines number of mesh cells in each dimension for fission and"
+                "heating tallies."
             ),
         ),
         setting.Setting(
@@ -175,7 +181,7 @@ def defineSettings():
             label="Use vertical reactor symmetry in OpenMC run.",
             description=(
                 "If enabled, the OpenMC geometry will be generated with a reflective"
-                 "bottom surface, implying vertical symmetry of the reactor."
+                "bottom surface, implying vertical symmetry of the reactor."
                 "This is a lazy way to implement what should eventually be a new"
                 "DomainType in ARMI. So far, it is only necessary for the C5G7 benchmark."
             ),

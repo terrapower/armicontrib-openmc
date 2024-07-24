@@ -109,7 +109,9 @@ class OpenMCWriter:
         lattice.outer = self.emptyUniverse
 
         # Create root universe
-        rootCell = openmc.Cell(name="rootCell", fill=lattice, region=self.boundingCellRegion)
+        rootCell = openmc.Cell(
+            name="rootCell", fill=lattice, region=self.boundingCellRegion
+        )
         rootUniverse = openmc.Universe(cells=[rootCell])
 
         # Write geometry to xml
@@ -144,8 +146,16 @@ class OpenMCWriter:
                 self.r.core.getAssemblyPitch()[0] * self.r.core.numRings * 2**0.5
             )
         point = openmc.stats.Box(
-            lower_left=(-self.boundingCylinderRadius, -self.boundingCylinderRadius, 0.0),
-            upper_right=(self.boundingCylinderRadius, self.boundingCylinderRadius, bbHeight),
+            lower_left=(
+                -self.boundingCylinderRadius,
+                -self.boundingCylinderRadius,
+                0.0,
+            ),
+            upper_right=(
+                self.boundingCylinderRadius,
+                self.boundingCylinderRadius,
+                bbHeight,
+            ),
             only_fissionable=True,
         )
         settings.source = openmc.IndependentSource(space=point)
@@ -228,10 +238,10 @@ class OpenMCWriter:
         core = self.r.core
         numRings = core.numRings
         if self.options.verticalSymmetry:
-            bottomBoundaryType = "reflective"
+            bottomBoundType = "reflective"
         else:
-            bottomBoundaryType = "vacuum"
-        boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type=bottomBoundaryType)
+            bottomBoundType = "vacuum"
+        boundingCellBottomPlane = openmc.ZPlane(z0=0.0, boundary_type=bottomBoundType)
         boundingCellTopPlane = openmc.ZPlane(
             z0=max([assembly.getHeight() for assembly in core]), boundary_type="vacuum"
         )
@@ -245,7 +255,9 @@ class OpenMCWriter:
 
             if core.symmetry.domain == armi.reactor.geometry.DomainType.FULL_CORE:
                 self.boundingCellRegion = (
-                    -self.boundingCylinder & +boundingCellBottomPlane & -boundingCellTopPlane
+                    -self.boundingCylinder
+                    & +boundingCellBottomPlane
+                    & -boundingCellTopPlane
                 )
 
             if core.symmetry.domain == armi.reactor.geometry.DomainType.THIRD_CORE:
@@ -255,11 +267,17 @@ class OpenMCWriter:
                 periodicPlane0 = openmc.Plane(a=0.0, b=1.0, c=0.0, d=0.0)
                 periodicPlane1 = openmc.Plane(a=3.0**0.5, b=1.0, c=0.0, d=0.0)
 
-                if core.symmetry.boundary == armi.reactor.geometry.BoundaryType.PERIODIC:
+                if (
+                    core.symmetry.boundary
+                    == armi.reactor.geometry.BoundaryType.PERIODIC
+                ):
                     periodicPlane0.boundary_type = "periodic"
                     periodicPlane1.boundary_type = "periodic"
 
-                if core.symmetry.boundary == armi.reactor.geometry.BoundaryType.REFLECTIVE:
+                if (
+                    core.symmetry.boundary
+                    == armi.reactor.geometry.BoundaryType.REFLECTIVE
+                ):
                     periodicPlane0.boundary_type = "reflective"
                     periodicPlane1.boundary_type = "reflective"
                 self.boundingCellRegion = (
@@ -271,7 +289,9 @@ class OpenMCWriter:
                 )
 
             emptyCellRegion = (
-                -self.boundingCylinder & +boundingCellBottomPlane & -boundingCellTopPlane
+                -self.boundingCylinder
+                & +boundingCellBottomPlane
+                & -boundingCellTopPlane
             )
             emptyCell = openmc.Cell(region=emptyCellRegion)
 
@@ -280,7 +300,9 @@ class OpenMCWriter:
             self.assemblyLatticeIndices = buildRings(numRings, self.emptyUniverse)
 
         elif core.geomType == GeomType.CARTESIAN:
-            self.boundingCylinderRadius = core.getAssemblyPitch()[0] * numRings * 2**0.5
+            self.boundingCylinderRadius = (
+                core.getAssemblyPitch()[0] * numRings * 2**0.5
+            )
             self.boundingCylinder = openmc.ZCylinder(
                 r=self.boundingCylinderRadius, boundary_type="vacuum"
             )
@@ -299,7 +321,9 @@ class OpenMCWriter:
                 )
 
             emptyCellRegion = (
-                -self.boundingCylinder & +boundingCellBottomPlane & -boundingCellTopPlane
+                -self.boundingCylinder
+                & +boundingCellBottomPlane
+                & -boundingCellTopPlane
             )
             emptyCell = openmc.Cell(region=emptyCellRegion)
 
@@ -320,8 +344,8 @@ class OpenMCWriter:
         for block in assembly:
             z0 += block.getHeight()
             ZPlanes.append(openmc.ZPlane(z0=z0, boundary_type="transmission"))
-        ZPlanes[-1].boundary_type = "vacuum"  # Reset top plane boundary condition to vacuum
-
+        # Reset top plane boundary condition to vacuum
+        ZPlanes[-1].boundary_type = "vacuum"
         blockCellsInAssembly = []
         for i, block in enumerate(assembly):
             blockCellsInAssembly += list(
@@ -332,11 +356,13 @@ class OpenMCWriter:
 
         # Place the assembly in the correct place in the core
         if self.r.core.geomType == GeomType.HEX:
-            ringIndices = cartesianToRing(assembly.spatialLocator.getCompleteIndices()[0:2])
-            self.assemblyLatticeIndices[ringIndices[0]][ringIndices[1]] = assemblyUniverse
+            ringInd = cartesianToRing(
+                assembly.spatialLocator.getCompleteIndices()[0:2]
+            )
+            self.assemblyLatticeIndices[ringInd[0]][ringInd[1]] = assemblyUniverse
         elif self.r.core.geomType == GeomType.CARTESIAN:
-            spatialIndices = assembly.spatialLocator.getCompleteIndices()
-            self.assemblyLatticeIndices[spatialIndices[0]][spatialIndices[1]] = assemblyUniverse
+            spatialInd = assembly.spatialLocator.getCompleteIndices()
+            self.assemblyLatticeIndices[spatialInd[0]][spatialInd[1]] = assemblyUniverse
         else:
             raise TypeError("Unsupported geometry type")
 
@@ -357,7 +383,7 @@ class OpenMCWriter:
                 for component in blockWithoutHelices
                 if isinstance(component, armi.reactor.components.DerivedShape)
             ][0]
-            derivedShapeComponentMaterial = _buildComponentMaterial(derivedShapeComponent)
+            derivedShapeComponentMaterial=_buildComponentMaterial(derivedShapeComponent)
             if derivedShapeComponentMaterial is not None:
                 self.materials.append(derivedShapeComponentMaterial)
                 self.plotColors[derivedShapeComponentMaterial.id] = self.colorLookup[
@@ -387,7 +413,8 @@ class OpenMCWriter:
         # Fix by adding a buffer to the outside of the largest component (e.g. intercoolant). Does not change effective geometry in the simulation and does
         # not affect armi object geometry.
         remainingComponentOuterDiameters = [
-            component.getBoundingCircleOuterDiameter() for component in remainingComponents
+            component.getBoundingCircleOuterDiameter()
+            for component in remainingComponents
         ]
         largestRemainingComponent = remainingComponents[
             max(
@@ -416,7 +443,9 @@ class OpenMCWriter:
             componentMaterial = _buildComponentMaterial(component)
             if componentMaterial is not None:
                 self.materials.append(componentMaterial)
-                self.plotColors[componentMaterial.id] = self.colorLookup[component.material.name]
+                self.plotColors[componentMaterial.id] = self.colorLookup[
+                    component.material.name
+                ]
             cell = self._buildCell(
                 component,
                 material=componentMaterial,
@@ -431,21 +460,27 @@ class OpenMCWriter:
             derivedShapeComponentCell = openmc.Cell(
                 name=derivedShapeComponent.getName(),
                 fill=derivedShapeComponentMaterial,
-                region=~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]),
+                region=~openmc.Union(
+                    [blockCell.region for blockCell in componentCellsInBlock]
+                ),
             )
             componentCellsInBlock.append(derivedShapeComponentCell)
         else:
             # If there's no DerivedShape component, add an empty cell in unoccupied region in case ComponentCellsInBlock doesn't fill its assemblyLattice cell
             emptyComponentCell = openmc.Cell(
                 name="emptyComponent",
-                region=~openmc.Union([blockCell.region for blockCell in componentCellsInBlock]),
+                region=~openmc.Union(
+                    [blockCell.region for blockCell in componentCellsInBlock]
+                ),
             )
             componentCellsInBlock.append(emptyComponentCell)
 
         # Assemble component cells into a universe for the block
         blockUniverse = openmc.Universe(cells=componentCellsInBlock)
         blockUniverseCell = openmc.Cell(
-            name=block.getName(), fill=blockUniverse, region=+blockBottomPlane & -blockTopPlane
+            name=block.getName(),
+            fill=blockUniverse,
+            region=+blockBottomPlane & -blockTopPlane,
         )
         # region=openmc.Union([blockCell.region for blockCell in componentCellsInBlock]) & +blockBottomPlane & -blockTopPlane)
 
@@ -503,7 +538,10 @@ class OpenMCWriter:
 
             elif self.r.core.geomType == GeomType.CARTESIAN:
                 boundingIndices = block.spatialGrid.getIndexBounds()
-                blockLatticeIndicesOffset = (boundingIndices[0][0], boundingIndices[1][0])
+                blockLatticeIndicesOffset = (
+                    boundingIndices[0][0],
+                    boundingIndices[1][0],
+                )
                 blockLattice = openmc.RectLattice()
                 blockLattice.pitch = latticePitch
                 blockLattice.lower_left = (
@@ -513,7 +551,7 @@ class OpenMCWriter:
                 blockLatticeIndices = []
                 for ring in range(boundingIndices[1][1] - boundingIndices[1][0] - 1):
                     blockLatticeIndices.append(
-                        [self.emptyUniverse] * (boundingIndices[0][1] - boundingIndices[0][0] - 1)
+                    [self.emptyUniverse]*(boundingIndices[0][1]-boundingIndices[0][0]-1)
                     )
 
             for mult in multGroups:
@@ -538,22 +576,31 @@ class OpenMCWriter:
                             name=derivedShapeComponent.getName(),
                             fill=derivedShapeComponentMaterial,
                             region=~openmc.Union(
-                                [cell.region for cell in componentCellsInMultGroupUniverse]
+                                [
+                                    cell.region
+                                    for cell in componentCellsInMultGroupUniverse
+                                ]
                             ),
                         )
-                        componentCellsInMultGroupUniverse.append(derivedShapeComponentLatticeCell)
+                        componentCellsInMultGroupUniverse.append(
+                            derivedShapeComponentLatticeCell
+                        )
 
                     multGroupUniverse = openmc.Universe(
-                        name="multGroup" + str(mult), cells=componentCellsInMultGroupUniverse
+                        name="multGroup" + str(mult),
+                        cells=componentCellsInMultGroupUniverse,
                     )
 
-                    # if spatialLocator is a multiIndexLocation, use it. Otherwise, assume all blockLatticeUniverses are multGroupUniverse
+                    # if spatialLocator is a multiIndexLocation, use it.
+                    # Otherwise, assume all blockLatticeUniverses are multGroupUniverse
                     multGroupIndices = multGroups[mult][0].spatialLocator
-                    if not isinstance(multGroupIndices, armi.reactor.grids.MultiIndexLocation):
+                    if not isinstance(
+                        multGroupIndices, armi.reactor.grids.MultiIndexLocation
+                    ):
                         # Assume every universe in blockLattice is a multGroupUniverse
-                        for rowIndex, row in enumerate(blockLatticeIndices):
-                            for colIndex in range(len(row)):
-                                blockLatticeIndices[rowIndex][colIndex] = multGroupUniverse
+                        for rowInd, row in enumerate(blockLatticeIndices):
+                            for colInd in range(len(row)):
+                                blockLatticeIndices[rowInd][colInd] = multGroupUniverse
                     else:
                         if self.r.core.geomType == GeomType.CARTESIAN:
                             for location in multGroupIndices:
@@ -592,7 +639,8 @@ class OpenMCWriter:
                 blockLatticeCellRegion = -innerCylinder
             elif isinstance(smallestMult1Component, basicShapes.Hexagon):
                 innerHexPrism = openmc.model.hexagonal_prism(
-                    edge_length=smallestMult1Component.getDimension("ip") / 3**0.5 - 0.05,
+                    edge_length=smallestMult1Component.getDimension("ip") / 3**0.5
+                    - 0.05,
                     orientation="x",
                 )
                 blockLatticeCellRegion = innerHexPrism
@@ -605,7 +653,11 @@ class OpenMCWriter:
             else:
                 raise NotImplementedError("Shape type not supported yet")
             blockLatticeCell = [
-                openmc.Cell(name="blockLattice", fill=blockLattice, region=blockLatticeCellRegion)
+                openmc.Cell(
+                    name="blockLattice",
+                    fill=blockLattice,
+                    region=blockLatticeCellRegion,
+                )
             ]
             remainingComponents = multGroups[1]
         else:
@@ -613,13 +665,17 @@ class OpenMCWriter:
             remainingComponents = [component for component in blockMinusDerivedShape]
         return blockLatticeCell, remainingComponents
 
-    def _buildCell(self, component, material, block, origin=(0.0, 0.0), outsideBuffer=0.0):
+    def _buildCell(
+        self, component, material, block, origin=(0.0, 0.0), outsideBuffer=0.0
+    ):
         """Create an OpenMC cell for a component or pin"""
         if component.getDimension("mult") == 1:
             cell = openmc.Cell(
                 name=component.getName(),
                 fill=material,
-                region=_buildCellRegion(component, origin=origin, outsideBuffer=outsideBuffer),
+                region=_buildCellRegion(
+                    component, origin=origin, outsideBuffer=outsideBuffer
+                ),
             )
         else:
             if block.hasPinPitch():
@@ -641,13 +697,18 @@ class OpenMCWriter:
                         location[1] * 3**0.5 * latticePitch,
                     )
                 elif self.r.core.geomType == GeomType.CARTESIAN:
-                    origin = (location[0] * latticePitch[0], location[1] * latticePitch[1])
+                    origin = (
+                        location[0] * latticePitch[0],
+                        location[1] * latticePitch[1],
+                    )
                 else:
                     raise TypeError("Unsupported geometry type")
 
                 cellRegions.append(_buildCellRegion(component, origin=origin))
             cell = openmc.Cell(
-                name=component.getName(), fill=material, region=openmc.Union(cellRegions)
+                name=component.getName(),
+                fill=material,
+                region=openmc.Union(cellRegions),
             )
         return cell
 
@@ -741,7 +802,9 @@ def _buildCellRegion(component, origin=(0.0, 0.0), outsideBuffer=0.0):
             x0=origin[0], y0=origin[1], r=component.getDimension("id") / 2
         )
         outerCylinder = openmc.ZCylinder(
-            x0=origin[0], y0=origin[1], r=component.getDimension("od") / 2 + outsideBuffer
+            x0=origin[0],
+            y0=origin[1],
+            r=component.getDimension("od") / 2 + outsideBuffer,
         )
         region = +innerCylinder & -outerCylinder
         return region
@@ -749,7 +812,9 @@ def _buildCellRegion(component, origin=(0.0, 0.0), outsideBuffer=0.0):
     # Hexagon
     if isinstance(component, basicShapes.Hexagon):
         innerHexPrism = openmc.model.hexagonal_prism(
-            edge_length=component.getDimension("ip") / 3**0.5, orientation="x", origin=origin
+            edge_length=component.getDimension("ip") / 3**0.5,
+            orientation="x",
+            origin=origin,
         )
         outerHexPrism = openmc.model.hexagonal_prism(
             edge_length=component.getDimension("op") / 3**0.5 + outsideBuffer,
@@ -784,7 +849,9 @@ def _buildCellRegion(component, origin=(0.0, 0.0), outsideBuffer=0.0):
     # Helix
     if isinstance(component, complexShapes.Helix):
         # Note: Helix components are automatically blended into coolant. We should never get here.
-        warnings.warn("Helix shape not supported by OpenMC. Ignoring helical component.")
+        warnings.warn(
+            "Helix shape not supported by OpenMC. Ignoring helical component."
+        )
         return
 
     # Others
@@ -807,13 +874,13 @@ def _blendHelixComponentsIntoCoolant(block, solventName="coolant"):
 def generateThermalScatteringLabel(tsl):
     """Derive the OpenMC label of a TSL"""
     first = next(iter(tsl.nbs))
-    if first == nuclideBases.byName["C"] and tsl.compoundName=="reactor-graphite-10P":
+    if first == nuclideBases.byName["C"] and tsl.compoundName == "reactor-graphite-10P":
         return "c_Graphite_10p"
-    if first == nuclideBases.byName["C"] and tsl.compoundName=="reactor-graphite-30P":
+    if first == nuclideBases.byName["C"] and tsl.compoundName == "reactor-graphite-30P":
         return "c_Graphite_30p"
-    if first == nuclideBases.byName["C"] and tsl.compoundName=="crystalline-graphite":
+    if first == nuclideBases.byName["C"] and tsl.compoundName == "crystalline-graphite":
         return "c_Graphite"
-    if first == nuclideBases.byName["BE"] and tsl.compoundName=="Be-metal":
+    if first == nuclideBases.byName["BE"] and tsl.compoundName == "Be-metal":
         return "c_Be"
     if len(tsl.nbs) > 1:
         # just compound (like SiO2)
