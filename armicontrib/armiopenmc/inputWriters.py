@@ -556,61 +556,13 @@ class OpenMCWriter:
 
             for mult in multGroups:
                 if mult > 1:
-                    componentCellsInMultGroupUniverse = []
-                    for component in multGroups[mult]:
-                        componentMaterial = _buildComponentMaterial(component)
-                        cell = openmc.Cell(
-                            name=component.getName(),
-                            fill=componentMaterial,
-                            region=_buildCellRegion(component),
-                        )
-                        if componentMaterial is not None:
-                            self.materials.append(componentMaterial)
-                            self.plotColors[componentMaterial.id] = self.colorLookup[
-                                component.material.name
-                            ]
-                        componentCellsInMultGroupUniverse.append(cell)
-                    if blockHasDerivedShapeComponent:
-                        # Fill unused space in lattice with derivedShapeComponentMaterial
-                        derivedShapeComponentLatticeCell = openmc.Cell(
-                            name=derivedShapeComponent.getName(),
-                            fill=derivedShapeComponentMaterial,
-                            region=~openmc.Union(
-                                [
-                                    cell.region
-                                    for cell in componentCellsInMultGroupUniverse
-                                ]
-                            ),
-                        )
-                        componentCellsInMultGroupUniverse.append(
-                            derivedShapeComponentLatticeCell
-                        )
-
-                    multGroupUniverse = openmc.Universe(
-                        name="multGroup" + str(mult),
-                        cells=componentCellsInMultGroupUniverse,
-                    )
-
-                    # if spatialLocator is a multiIndexLocation, use it.
-                    # Otherwise, assume all blockLatticeUniverses are multGroupUniverse
-                    multGroupIndices = multGroups[mult][0].spatialLocator
-                    if not isinstance(
-                        multGroupIndices, armi.reactor.grids.MultiIndexLocation
-                    ):
-                        # Assume every universe in blockLattice is a multGroupUniverse
-                        for rowInd, row in enumerate(blockLatticeIndices):
-                            for colInd in range(len(row)):
-                                blockLatticeIndices[rowInd][colInd] = multGroupUniverse
-                    else:
-                        if self.r.core.geomType == GeomType.CARTESIAN:
-                            for location in multGroupIndices:
-                                blockLatticeIndices[location[0]][location[1]] = multGroupUniverse
-                        if self.r.core.geomType == GeomType.HEX:
-                            for location in multGroupIndices:
-                                ringIndices = cartesianToRing(location[0:2])
-                                blockLatticeIndices[ringIndices[0]][
-                                    ringIndices[1]
-                                ] = multGroupUniverse
+                    blockLatticeIndices = self._writeMultGroupGeometry(
+                        mult,
+                        multGroups,
+                        blockLatticeIndices,
+                        blockHasDerivedShapeComponent,
+                        derivedShapeComponent,
+                        derivedShapeComponentMaterial)
 
             if self.r.core.geomType == GeomType.HEX:
                 blockLatticeIndices.reverse()
@@ -664,6 +616,71 @@ class OpenMCWriter:
             blockLatticeCell = []
             remainingComponents = [component for component in blockMinusDerivedShape]
         return blockLatticeCell, remainingComponents
+
+
+    def _writeMultGroupGeometry(
+        self,
+        mult,
+        multGroups,
+        blockLatticeIndices,
+        blockHasDerivedShapeComponent,
+        derivedShapeComponent,
+        derivedShapeComponentMaterial,
+        ):
+        componentCellsInMultGroupUniverse = []
+        for component in multGroups[mult]:
+            componentMaterial = _buildComponentMaterial(component)
+            cell = openmc.Cell(
+                name=component.getName(),
+                fill=componentMaterial,
+                region=_buildCellRegion(component),
+            )
+            if componentMaterial is not None:
+                self.materials.append(componentMaterial)
+                self.plotColors[componentMaterial.id] = self.colorLookup[
+                    component.material.name
+                ]
+            componentCellsInMultGroupUniverse.append(cell)
+        if blockHasDerivedShapeComponent:
+            # Fill unused space in lattice with derivedShapeComponentMaterial
+            derivedShapeComponentLatticeCell = openmc.Cell(
+                name=derivedShapeComponent.getName(),
+                fill=derivedShapeComponentMaterial,
+                region=~openmc.Union(
+                    [
+                        cell.region
+                        for cell in componentCellsInMultGroupUniverse
+                    ]
+                ),
+            )
+            componentCellsInMultGroupUniverse.append(
+                derivedShapeComponentLatticeCell
+            )
+
+        multGroupUniverse = openmc.Universe(
+            name="multGroup" + str(mult),
+            cells=componentCellsInMultGroupUniverse,
+        )
+
+        # if spatialLocator is a multiIndexLocation, use it.
+        # Otherwise, assume all blockLatticeUniverses are multGroupUniverse
+        multGroupIndices = multGroups[mult][0].spatialLocator
+        if not isinstance(
+            multGroupIndices, armi.reactor.grids.MultiIndexLocation
+        ):
+            # Assume every universe in blockLattice is a multGroupUniverse
+            for rowInd, row in enumerate(blockLatticeIndices):
+                for colInd in range(len(row)):
+                    blockLatticeIndices[rowInd][colInd] = multGroupUniverse
+        else:
+            if self.r.core.geomType == GeomType.CARTESIAN:
+                for location in multGroupIndices:
+                    blockLatticeIndices[location[0]][location[1]] = multGroupUniverse
+            if self.r.core.geomType == GeomType.HEX:
+                for location in multGroupIndices:
+                    ringInd = cartesianToRing(location[0:2])
+                    blockLatticeIndices[ringInd0]][ringInd[1]] = multGroupUniverse
+        return blockLatticeIndices
 
     def _buildCell(
         self, component, material, block, origin=(0.0, 0.0), outsideBuffer=0.0
