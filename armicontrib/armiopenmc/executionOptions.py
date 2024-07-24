@@ -102,9 +102,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         )
         self.outputFile = "statepoint." + str(self.nBatches) + ".h5"
         if self.existingFixedSource:
-            self.extraInputFiles.append(
-                (self.existingFixedSource, self.existingFixedSource)
-            )
+            self.extraInputFiles.append((self.existingFixedSource, self.existingFixedSource))
         if self.isRestart:
             for _label, fnames in fileSetsHandler.specifyRestartFiles(self).items():
                 self.extraInputFiles.extend([(f, f) for f in fnames])

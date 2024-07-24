@@ -86,8 +86,7 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
 
         if self.options.executablePath is None:
             raise ValueError(
-                f"Cannot find executable at {self.options.executablePath}. "
-                f"Update run settings."
+                f"Cannot find executable at {self.options.executablePath}. " f"Update run settings."
             )
 
         openmc.run(
