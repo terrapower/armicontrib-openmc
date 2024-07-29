@@ -136,6 +136,7 @@ class OpenMCWriter:
         runLog.info("Writing settings...")
         settings = openmc.Settings()
         settings.run_mode = "eigenvalue"
+        settings.resonance_scattering = {"enable": True}
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
         if self.r.core.geomType == GeomType.HEX:
             self.boundingCylinderRadius = self.r.core.getCoreRadius()
