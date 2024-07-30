@@ -91,7 +91,7 @@ class OpenMCExecuter(globalFluxInterface.GlobalFluxExecuter):
 
         openmc.run(
             threads=self.options.nOMPThreads,
-            mpi_args=["mpiexec", "-n", str(self.options.nMPIProcesses), "--bind-to", "none"],
+            # mpi_args=["mpiexec", "-n", str(self.options.nMPIProcesses), "--bind-to", "none"],
             openmc_exec=self.options.executablePath,
         )
 
