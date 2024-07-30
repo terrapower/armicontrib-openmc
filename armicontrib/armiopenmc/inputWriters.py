@@ -702,6 +702,8 @@ class OpenMCWriter:
                 fill=material,
                 region=openmc.Union(cellRegions),
             )
+        if component.getVolume()>0:
+            cell.temperature=component.getAverageTempInC()+274
         return cell
 
 
