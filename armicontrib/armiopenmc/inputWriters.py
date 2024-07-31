@@ -702,8 +702,8 @@ class OpenMCWriter:
                 fill=material,
                 region=openmc.Union(cellRegions),
             )
-        if component.getVolume()>0:
-            cell.temperature=component.getAverageTempInC()+274
+        if component.getVolume() > 0:
+            cell.temperature = component.getAverageTempInC() + 274
         return cell
 
 
@@ -719,66 +719,16 @@ def _buildComponentMaterial(component):
     for n in componentNuclides:
         compNucDens[n] = component.getNumberDensity(n)
 
-<<<<<<< HEAD
     if any([isinstance(nb.byName[nuc], nb.NaturalNuclideBase) for nuc in compNucDens.keys()]):
         compNucDens = _expandNaturalNuclides(compNucDens)
-=======
-    # Expand any NaturalNuclideBases out to their NaturalIsotopics
-    while any(
-        [
-            isinstance(nuclideBases.byName[nuclideName], nuclideBases.NaturalNuclideBase)
-            for nuclideName in componentNuclideDensities.keys()
-        ]
-    ):
-        newDensities = dict(componentNuclideDensities)
-        for nuclideName in componentNuclideDensities.keys():
-            nuclide = nuclideBases.byName[nuclideName]
-            if isinstance(nuclide, nuclideBases.NaturalNuclideBase):
-                elementDensity = componentNuclideDensities[nuclideName]
-                del newDensities[nuclideName]
-                for n in nuclide.getNaturalIsotopics():
-                    if n.name in newDensities:
-                        newDensities[n.name] += n.abundance * elementDensity
-                    else:
-                        newDensities[n.name] = n.abundance * elementDensity
-        componentNuclideDensities = newDensities
->>>>>>> d9a2e18... Move block lattice construction for 2 mult groups to its own function and reformat with black (incorrect line length used before)
 
     if any([isinstance(nb.byName[nuc], nb.LumpNuclideBase) for nuc in compNucDens.keys()]):
         compNucDens = _expandLumpedNuclides(compNucDens)
 
-<<<<<<< HEAD
     totalComponentNuclideDensity = sum([compNucDens[n] for n in compNucDens.keys()])
 
     for nuclideName in compNucDens.keys():
         nuclide = nb.byName[nuclideName]
-=======
-        with open(REFERENCE_LUMPED_FISSION_PRODUCT_FILE, "r") as LFP_FILE:
-            LFP_TEXT = LFP_FILE.read()
-            fpd = lumpedFissionProduct.FissionProductDefinitionFile(io.StringIO(LFP_TEXT))
-            fpd.fName = REFERENCE_LUMPED_FISSION_PRODUCT_FILE
-            lfps = fpd.createLFPsFromFile()
-
-        newDensities = dict(componentNuclideDensities)
-        for nuclideName in componentNuclideDensities.keys():
-            nuclide = nuclideBases.byName[nuclideName]
-            if isinstance(nuclide, nuclideBases.LumpNuclideBase):
-                lumpDensity = componentNuclideDensities[nuclideName]
-                del newDensities[nuclideName]
-                for n in lfps[nuclideName].keys():
-                    if n.name in newDensities:
-                        newDensities[n.name] += lfps[nuclideName][n] * lumpDensity
-                    else:
-                        newDensities[n.name] = lfps[nuclideName][n] * lumpDensity
-        componentNuclideDensities = newDensities
-
-    totalComponentNuclideDensity = sum(
-        [componentNuclideDensities[n] for n in componentNuclideDensities.keys()]
-    )
-
-    for nuclideName in componentNuclideDensities.keys():
-        nuclide = nuclideBases.byName[nuclideName]
->>>>>>> d9a2e18... Move block lattice construction for 2 mult groups to its own function and reformat with black (incorrect line length used before)
         if nuclide.a > 0:  # Skip dummy nuclides. Natural and Lumped should be taken care of
             nuclideGNDSName = openmc.data.gnds_name(Z=nuclide.z, A=nuclide.a, m=nuclide.state)
             componentMaterial.add_nuclide(
@@ -792,6 +742,7 @@ def _buildComponentMaterial(component):
         componentMaterial.add_s_alpha_beta(generateThermalScatteringLabel(tsl))
 
     return componentMaterial
+
 
 def _expandNaturalNuclides(compNucDens):
     # Expand any NaturalNuclideBases out to their NaturalIsotopics
@@ -916,21 +867,21 @@ def _blendHelixComponentsIntoCoolant(block, solventName="coolant"):
 def generateThermalScatteringLabel(tsl):
     """Derive the OpenMC label of a TSL"""
     first = next(iter(tsl.nbs))
-    if first == nuclideBases.byName["C"] and tsl.compoundName == "reactor-graphite-10P":
+    if first == nb.byName["C"] and tsl.compoundName == "reactor-graphite-10P":
         return "c_Graphite_10p"
-    if first == nuclideBases.byName["C"] and tsl.compoundName == "reactor-graphite-30P":
+    if first == nb.byName["C"] and tsl.compoundName == "reactor-graphite-30P":
         return "c_Graphite_30p"
-    if first == nuclideBases.byName["C"] and tsl.compoundName == "crystalline-graphite":
+    if first == nb.byName["C"] and tsl.compoundName == "crystalline-graphite":
         return "c_Graphite"
-    if first == nuclideBases.byName["BE"] and tsl.compoundName == "Be-metal":
+    if first == nb.byName["BE"] and tsl.compoundName == "Be-metal":
         return "c_Be"
     if len(tsl.nbs) > 1:
         # just compound (like SiO2)
         label = f"c_{tsl.compoundName}"
-    elif isinstance(first, nuclideBases.NaturalNuclideBase):
+    elif isinstance(first, nb.NaturalNuclideBase):
         # element in compound
         label = f"c_{first.element.symbol.capitalize()}_in_{tsl.compoundName}"
-    elif isinstance(first, nuclideBases.NuclideBase):
+    elif isinstance(first, nb.NuclideBase):
         # just isotope
         label = f"c_{first.name.capitalize()}"
     else:
