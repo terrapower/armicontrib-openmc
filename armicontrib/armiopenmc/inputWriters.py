@@ -138,26 +138,30 @@ class OpenMCWriter:
         settings.run_mode = "eigenvalue"
         settings.resonance_scattering = {"enable": True}
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
+
         if self.r.core.geomType == GeomType.HEX:
             self.boundingCylinderRadius = self.r.core.getCoreRadius()
+            if self.r.core.symmetry.domain == armi.reactor.geometry.DomainType.THIRD_CORE:
+                sourceLowerLeft = (-self.boundingCylinderRadius / 2, 0.0, 0.0)
+            elif self.r.core.symmetry.domain == armi.reactor.geometry.DomainType.FULL_CORE:
+                sourceLowerLeft = (-self.boundingCylinderRadius, -self.boundingCylinderRadius, 0.0)
         elif self.r.core.geomType == GeomType.CARTESIAN:
             self.boundingCylinderRadius = (
                 self.r.core.getAssemblyPitch()[0] * self.r.core.numRings * 2**0.5
             )
-        point = openmc.stats.Box(
-            lower_left=(
-                -self.boundingCylinderRadius,
-                -self.boundingCylinderRadius,
-                0.0,
-            ),
-            upper_right=(
-                self.boundingCylinderRadius,
-                self.boundingCylinderRadius,
-                bbHeight,
-            ),
-            only_fissionable=True,
+            if self.r.core.symmetry.domain == armi.reactor.geometry.DomainType.QUARTER_CORE:
+                sourceLowerLeft = (0.0, 0.0, 0.0)
+            elif self.r.core.symmetry.domain == armi.reactor.geometry.DomainType.FULL_CORE:
+                sourceLowerLeft = (-self.boundingCylinderRadius, -self.boundingCylinderRadius, 0.0)
+
+        sourceBox = openmc.stats.Box(
+            lower_left=sourceLowerLeft,
+            upper_right=(self.boundingCylinderRadius, self.boundingCylinderRadius, bbHeight),
         )
-        settings.source = openmc.IndependentSource(space=point)
+
+        settings.source = openmc.IndependentSource(
+            space=sourceBox, constraints={"fissionable": True}
+        )
         settings.batches = self.options.nBatches
         settings.inactive = self.options.nInactiveBatches
         settings.particles = self.options.nParticles
