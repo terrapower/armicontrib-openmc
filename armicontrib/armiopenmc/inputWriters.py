@@ -589,17 +589,17 @@ class OpenMCWriter:
             innerCylinder = openmc.ZCylinder(r=smallestMult1Component.getDimension("id") / 2)
             blockLatticeCellRegion = -innerCylinder
         elif isinstance(smallestMult1Component, basicShapes.Hexagon):
-            innerHexPrism = openmc.model.hexagonal_prism(
+            innerHexPrism = openmc.model.HexagonalPrism(
                 edge_length=smallestMult1Component.getDimension("ip") / 3**0.5,
                 orientation="x",
             )
-            blockLatticeCellRegion = innerHexPrism
+            blockLatticeCellRegion = -innerHexPrism
         elif isinstance(smallestMult1Component, basicShapes.Rectangle):
-            innerRectPrism = openmc.model.rectangular_prism(
+            innerRectPrism = openmc.model.RectangularPrism(
                 width=smallestMult1Component.getDimension("widthInner"),
                 height=smallestMult1Component.getDimension("lengthInner"),
             )
-            blockLatticeCellRegion = innerRectPrism
+            blockLatticeCellRegion = -innerRectPrism
         else:
             raise NotImplementedError("Shape type not supported yet")
         blockLatticeCell = [
@@ -810,32 +810,32 @@ def _buildCellRegion(component, origin=(0.0, 0.0), outsideBuffer=0.0):
 
     # Hexagon
     if isinstance(component, basicShapes.Hexagon):
-        innerHexPrism = openmc.model.hexagonal_prism(
+        innerHexPrism = openmc.model.HexagonalPrism(
             edge_length=component.getDimension("ip") / 3**0.5,
             orientation="x",
             origin=origin,
         )
-        outerHexPrism = openmc.model.hexagonal_prism(
+        outerHexPrism = openmc.model.HexagonalPrism(
             edge_length=component.getDimension("op") / 3**0.5 + outsideBuffer,
             orientation="x",
             origin=origin,
         )
-        region = ~innerHexPrism & outerHexPrism
+        region = +innerHexPrism & -outerHexPrism
         return region
 
     # Rectangle
     if isinstance(component, basicShapes.Rectangle):
-        innerRectPrism = openmc.model.rectangular_prism(
+        innerRectPrism = openmc.model.RectangularPrism(
             width=component.getDimension("widthInner"),
             height=component.getDimension("lengthInner"),
             origin=origin,
         )  # Check that width/height aren't flipped
-        outerRectPrism = openmc.model.rectangular_prism(
+        outerRectPrism = openmc.model.RectangularPrism(
             width=component.getDimension("widthOuter") + outsideBuffer,
             height=component.getDimension("lengthOuter") + outsideBuffer,
             origin=origin,
         )
-        region = ~innerRectPrism & outerRectPrism
+        region = +innerRectPrism & -outerRectPrism
         return region
 
     # DerivedShape
