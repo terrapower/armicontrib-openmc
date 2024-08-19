@@ -34,6 +34,8 @@ from armi.reactor.geometry import GeomType
 import openmc
 
 
+energyMode = "multigroup"
+
 class OpenMCWriter:
     """
     Write OpenMC data using the openmc python api.
@@ -127,6 +129,8 @@ class OpenMCWriter:
         plot.colors = self.plotColors
         plots = openmc.Plots([plot])
 
+        if energyMode == "multigroup":
+            self.materials.cross_sections = "/home/aidan//armicases/c5g7multi/mgxs.h5"
         self.materials.export_to_xml()
         plots.export_to_xml()
         geometry.export_to_xml()
@@ -136,7 +140,11 @@ class OpenMCWriter:
         runLog.info("Writing settings...")
         settings = openmc.Settings()
         settings.run_mode = "eigenvalue"
-        settings.resonance_scattering = {"enable": True}
+        if energyMode == "multigroup":
+            settings.energy_mode = "multi-group"
+        else:
+            settings.energy_mode = "continuous-energy"
+        #settings.resonance_scattering = {"enable": True}
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
 
         if self.r.core.geomType == GeomType.HEX:
@@ -166,7 +174,7 @@ class OpenMCWriter:
         settings.inactive = self.options.nInactiveBatches
         settings.particles = self.options.nParticles
         settings.generations_per_batch = 1
-        settings.temperature = {"method": "interpolation", "default": 350.0}
+        settings.temperature = {"method": "interpolation", "default": 294.0}
         settings.output = {"tallies": False, "summary": False}
         settings.verbosity = self.options.openmcVerbosity
         entropyMesh = openmc.RegularMesh()
@@ -208,7 +216,7 @@ class OpenMCWriter:
 
         fissionTally = openmc.Tally(101, name="fission rate")
         fissionTally.scores = ["fission"]
-        fissionTally.nuclides = ["U235", "U238", "total"]
+        #fissionTally.nuclides = ["U235", "U238", "total"]
         fissionTally.filters = [meshFilter]
         tallies.append(fissionTally)
 
@@ -222,11 +230,13 @@ class OpenMCWriter:
         meshFluxTally.filters = [meshFilter, energyFilter]
         tallies.append(meshFluxTally)
 
+        '''
         powerTally = openmc.Tally(104, name="power")
         powerTally.scores = ["heating-local"]
         powerTally.filters = [blockFilter]
         tallies.append(powerTally)
-
+        '''
+        
         absorptionTally = openmc.Tally(105, name="absorption")
         absorptionTally.scores = ["absorption"]
         absorptionTally.filters = [blockFilter]
@@ -716,34 +726,38 @@ def _buildComponentMaterial(component):
     if component.material.name == "Void":
         return None
     componentMaterial = openmc.Material(name=component.material.name)
-    componentMaterial.set_density("g/cm3", component.density())
+    if energyMode == "multigroup":
+        componentMaterial.set_density('macro', 1.)
+        componentMaterial.add_macroscopic(openmc.Macroscopic(component.name))
+    else:    
+        componentMaterial.set_density("g/cm3", component.density())
 
-    componentNuclides = component.getNuclides()
-    compNucDens = {}  # Component nuclide densities. Shortened for readability
-    for n in componentNuclides:
-        compNucDens[n] = component.getNumberDensity(n)
+        componentNuclides = component.getNuclides()
+        compNucDens = {}  # Component nuclide densities. Shortened for readability
+        for n in componentNuclides:
+            compNucDens[n] = component.getNumberDensity(n)
 
-    if any([isinstance(nb.byName[nuc], nb.NaturalNuclideBase) for nuc in compNucDens.keys()]):
-        compNucDens = _expandNaturalNuclides(compNucDens)
+        if any([isinstance(nb.byName[nuc], nb.NaturalNuclideBase) for nuc in compNucDens.keys()]):
+            compNucDens = _expandNaturalNuclides(compNucDens)
 
-    if any([isinstance(nb.byName[nuc], nb.LumpNuclideBase) for nuc in compNucDens.keys()]):
-        compNucDens = _expandLumpedNuclides(compNucDens)
+        if any([isinstance(nb.byName[nuc], nb.LumpNuclideBase) for nuc in compNucDens.keys()]):
+            compNucDens = _expandLumpedNuclides(compNucDens)
 
-    totalComponentNuclideDensity = sum([compNucDens[n] for n in compNucDens.keys()])
+        totalComponentNuclideDensity = sum([compNucDens[n] for n in compNucDens.keys()])
 
-    for nuclideName in compNucDens.keys():
-        nuclide = nb.byName[nuclideName]
-        if nuclide.a > 0:  # Skip dummy nuclides. Natural and Lumped should be taken care of
-            nuclideGNDSName = openmc.data.gnds_name(Z=nuclide.z, A=nuclide.a, m=nuclide.state)
-            componentMaterial.add_nuclide(
-                nuclideGNDSName,
-                compNucDens[nuclideName] / totalComponentNuclideDensity,
-                "ao",
-            )
+        for nuclideName in compNucDens.keys():
+            nuclide = nb.byName[nuclideName]
+            if nuclide.a > 0:  # Skip dummy nuclides. Natural and Lumped should be taken care of
+                nuclideGNDSName = openmc.data.gnds_name(Z=nuclide.z, A=nuclide.a, m=nuclide.state)
+                componentMaterial.add_nuclide(
+                    nuclideGNDSName,
+                    compNucDens[nuclideName] / totalComponentNuclideDensity,
+                    "ao",
+                )
 
-    # Add thermal scattering data attached to the armi material
-    for tsl in component.material.thermalScatteringLaws:
-        componentMaterial.add_s_alpha_beta(generateThermalScatteringLabel(tsl))
+        # Add thermal scattering data attached to the armi material
+        for tsl in component.material.thermalScatteringLaws:
+            componentMaterial.add_s_alpha_beta(generateThermalScatteringLabel(tsl))
 
     return componentMaterial
 
