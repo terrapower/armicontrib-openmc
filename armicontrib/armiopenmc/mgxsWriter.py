@@ -22,6 +22,7 @@ class MGXSWriter:
         if self.inputType == 'compxs':
             self.writeCompxs()
     def writeCompxs(self):
+        numGroups = self.lib.compxsMetadata["numGroups"]
         groups = openmc.mgxs.EnergyGroups(np.append(np.array([0.]), self.lib.neutronEnergyUpperBounds))
         mg_cross_sections_file = openmc.MGXSLibrary(groups)
         for region in self.lib.regions:
@@ -35,7 +36,7 @@ class MGXSWriter:
                     if interaction == 'absorption':
                         region_xsdata.set_absorption(data)
                     if interaction == 'totalScatter':
-                        region_xsdata.set_scatter_matrix(np.reshape(data.toarray(),(7,7,1)))
+                        region_xsdata.set_scatter_matrix(np.reshape(data.toarray(),(numGroups,numGroups,1)))
                     if interaction == 'fission':
                         region_xsdata.set_fission(data)
                     if interaction == 'nuSigF':
@@ -43,6 +44,6 @@ class MGXSWriter:
                     if interaction == 'neutronsPerFission':
                         region_xsdata.set_nu_fission(data*region.macros[fission])
                     if interaction == 'chi':
-                        region_xsdata.set_chi(np.reshape(data,(7,)))
+                        region_xsdata.set_chi(np.reshape(data,(numGroups,)))
             mg_cross_sections_file.add_xsdatas([region_xsdata])
         mg_cross_sections_file.export_to_hdf5()

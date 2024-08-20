@@ -34,6 +34,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.libDataFile = neutronics.ISOTXS
         self.label = label if label else "openmc"
         self.executablePath = None
+        self.energyMode = None
         self.nParticles = None
         self.nBatches = None
         self.nInactiveBatches = None
@@ -59,6 +60,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         """Set options from user settings"""
         globalFluxInterface.GlobalFluxOptions.fromUserSettings(self, cs)
         self.executablePath = shutil.which(cs[settings.CONF_OPENMC_PATH])
+        self.energyMode = cs[settings.CONF_ENERGY_MODE]
         self.nParticles = cs[settings.CONF_N_PARTICLES]
         self.nBatches = cs[settings.CONF_N_BATCHES]
         self.nInactiveBatches = cs[settings.CONF_N_INACTIVE]
@@ -109,7 +111,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
 
     def addTallies(self, Tallies: openmc.Tallies):
         """
-        Tallies to use in the openmc run in addition to the default tallies.
+        Optional tallies to use in the openmc run in addition to the default tallies.
         Specified using the openmc python api.
         Note: Beware reusing tally ids used by the default tallies (101-105).
         """

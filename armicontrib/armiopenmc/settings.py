@@ -37,6 +37,7 @@ CONF_EPS_NDENS = "epsNdens"
 CONF_NEUTRONICS_OUTPUTS_TO_SAVE = "neutronicsOutputsToSave"
 CONF_OPENMC_DB = "writeOpenMCDb"
 CONF_OPENMC_PATH = "OpenMCExePath"
+CONF_ENERGY_MODE = "energyMode"
 CONF_N_PARTICLES = "nParticles"
 CONF_N_BATCHES = "nBatches"
 CONF_N_INACTIVE = "nInactiveBatches"
@@ -92,6 +93,12 @@ def defineSettings():
             label="OpenMC path",
             description="The path to the OpenMC executable",
             options=[],
+        ),
+        setting.Setting(
+            CONF_ENERGY_MODE,
+            default="continuous-energy",
+            label="Energy mode",
+            description="Whether to use continuous energy or multigroup cross sections"
         ),
         setting.Setting(
             CONF_N_BATCHES,

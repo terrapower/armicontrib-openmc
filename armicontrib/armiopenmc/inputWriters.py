@@ -34,8 +34,6 @@ from armi.reactor.geometry import GeomType
 import openmc
 
 
-energyMode = "multigroup"
-
 class OpenMCWriter:
     """
     Write OpenMC data using the openmc python api.
@@ -129,7 +127,7 @@ class OpenMCWriter:
         plot.colors = self.plotColors
         plots = openmc.Plots([plot])
 
-        if energyMode == "multigroup":
+        if self.options.energyMode == "multigroup":
             self.materials.cross_sections = "/home/aidan//armicases/c5g7multi/mgxs.h5"
         self.materials.export_to_xml()
         plots.export_to_xml()
@@ -140,7 +138,7 @@ class OpenMCWriter:
         runLog.info("Writing settings...")
         settings = openmc.Settings()
         settings.run_mode = "eigenvalue"
-        if energyMode == "multigroup":
+        if self.options.energyMode == "multigroup":
             settings.energy_mode = "multi-group"
         else:
             settings.energy_mode = "continuous-energy"
@@ -380,7 +378,7 @@ class OpenMCWriter:
                 for component in blockWithoutHelices
                 if isinstance(component, armi.reactor.components.DerivedShape)
             ][0]
-            derivedShapeComponentMaterial = _buildComponentMaterial(derivedShapeComponent)
+            derivedShapeComponentMaterial = self._buildComponentMaterial(derivedShapeComponent)
             if derivedShapeComponentMaterial is not None:
                 self.materials.append(derivedShapeComponentMaterial)
                 self.plotColors[derivedShapeComponentMaterial.id] = self.colorLookup[
@@ -418,7 +416,7 @@ class OpenMCWriter:
                 key=remainingComponentOuterDiameters.__getitem__,
             )
         ]
-        componentMaterial = _buildComponentMaterial(largestRemainingComponent)
+        componentMaterial = self._buildComponentMaterial(largestRemainingComponent)
         if componentMaterial is not None:
             self.materials.append(componentMaterial)
             self.plotColors[componentMaterial.id] = self.colorLookup[
@@ -436,7 +434,7 @@ class OpenMCWriter:
 
         # Create cells for the remaining components
         for component in remainingComponents:
-            componentMaterial = _buildComponentMaterial(component)
+            componentMaterial = self._buildComponentMaterial(component)
             if componentMaterial is not None:
                 self.materials.append(componentMaterial)
                 self.plotColors[componentMaterial.id] = self.colorLookup[component.material.name]
@@ -633,7 +631,7 @@ class OpenMCWriter:
     ):
         componentCellsInMultGroupUniverse = []
         for component in multGroups[mult]:
-            componentMaterial = _buildComponentMaterial(component)
+            componentMaterial = self._buildComponentMaterial(component)
             cell = openmc.Cell(
                 name=component.getName(),
                 fill=componentMaterial,
@@ -721,45 +719,45 @@ class OpenMCWriter:
         return cell
 
 
-def _buildComponentMaterial(component):
-    """Build OpenMC material for ARMI component"""
-    if component.material.name == "Void":
-        return None
-    componentMaterial = openmc.Material(name=component.material.name)
-    if energyMode == "multigroup":
-        componentMaterial.set_density('macro', 1.)
-        componentMaterial.add_macroscopic(openmc.Macroscopic(component.name))
-    else:    
-        componentMaterial.set_density("g/cm3", component.density())
+    def _buildComponentMaterial(self, component):
+        """Build OpenMC material for ARMI component"""
+        if component.material.name == "Void":
+            return None
+        componentMaterial = openmc.Material(name=component.material.name)
+        if self.options.energyMode == "multigroup":
+            componentMaterial.set_density('macro', 1.)
+            componentMaterial.add_macroscopic(openmc.Macroscopic(component.name))
+        else:    
+            componentMaterial.set_density("g/cm3", component.density())
 
-        componentNuclides = component.getNuclides()
-        compNucDens = {}  # Component nuclide densities. Shortened for readability
-        for n in componentNuclides:
-            compNucDens[n] = component.getNumberDensity(n)
+            componentNuclides = component.getNuclides()
+            compNucDens = {}  # Component nuclide densities. Shortened for readability
+            for n in componentNuclides:
+                compNucDens[n] = component.getNumberDensity(n)
 
-        if any([isinstance(nb.byName[nuc], nb.NaturalNuclideBase) for nuc in compNucDens.keys()]):
-            compNucDens = _expandNaturalNuclides(compNucDens)
+            if any([isinstance(nb.byName[nuc], nb.NaturalNuclideBase) for nuc in compNucDens.keys()]):
+                compNucDens = _expandNaturalNuclides(compNucDens)
 
-        if any([isinstance(nb.byName[nuc], nb.LumpNuclideBase) for nuc in compNucDens.keys()]):
-            compNucDens = _expandLumpedNuclides(compNucDens)
+            if any([isinstance(nb.byName[nuc], nb.LumpNuclideBase) for nuc in compNucDens.keys()]):
+                compNucDens = _expandLumpedNuclides(compNucDens)
 
-        totalComponentNuclideDensity = sum([compNucDens[n] for n in compNucDens.keys()])
+            totalComponentNuclideDensity = sum([compNucDens[n] for n in compNucDens.keys()])
 
-        for nuclideName in compNucDens.keys():
-            nuclide = nb.byName[nuclideName]
-            if nuclide.a > 0:  # Skip dummy nuclides. Natural and Lumped should be taken care of
-                nuclideGNDSName = openmc.data.gnds_name(Z=nuclide.z, A=nuclide.a, m=nuclide.state)
-                componentMaterial.add_nuclide(
-                    nuclideGNDSName,
-                    compNucDens[nuclideName] / totalComponentNuclideDensity,
-                    "ao",
-                )
+            for nuclideName in compNucDens.keys():
+                nuclide = nb.byName[nuclideName]
+                if nuclide.a > 0:  # Skip dummy nuclides. Natural and Lumped should be taken care of
+                    nuclideGNDSName = openmc.data.gnds_name(Z=nuclide.z, A=nuclide.a, m=nuclide.state)
+                    componentMaterial.add_nuclide(
+                        nuclideGNDSName,
+                        compNucDens[nuclideName] / totalComponentNuclideDensity,
+                        "ao",
+                    )
 
-        # Add thermal scattering data attached to the armi material
-        for tsl in component.material.thermalScatteringLaws:
-            componentMaterial.add_s_alpha_beta(generateThermalScatteringLabel(tsl))
+            # Add thermal scattering data attached to the armi material
+            for tsl in component.material.thermalScatteringLaws:
+                componentMaterial.add_s_alpha_beta(generateThermalScatteringLabel(tsl))
 
-    return componentMaterial
+        return componentMaterial
 
 
 def _expandNaturalNuclides(compNucDens):
