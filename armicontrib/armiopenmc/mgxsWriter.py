@@ -1,12 +1,15 @@
 import numpy as np
+import os
 import openmc
-from armi.nuclearDataIO.cccc import compxs
+from armi.nuclearDataIO.xsLibraries import CompxsLibrary, IsotxsLibrary
+from armi.nuclearDataIO.cccc import compxs, isotxs
 
 class MGXSWriter:
-    def __init__(self, inputFile, regionNames=None):
+    def __init__(self, inputFile, inputFormat, regionNames=None):
         self.inputFile = inputFile
-        self.inputType = 'compxs'
-        self.inputFormat = 'ascii'
+        self.inputType = inputFormat
+        self.outputFilename = os.path.splitext(inputFile)[0] + ".h5"
+        fileExtension = os.path.splitext(inputFile)[1]
         self.regionNames = {'0': 'fuel',
                             '1': 'mox low fuel',
                             '2': 'mox medium fuel',
@@ -14,13 +17,40 @@ class MGXSWriter:
                             '4': 'moderator',
                             '5': 'guide tube',
                             '6': 'fission chamber'}
-        self.lib = None
-    def readInput(self):
-        if self.inputType == 'compxs':
-            self.lib = compxs.readAscii(self.inputFile)
+        if self.inputType == 'macro':
+            if fileExtension == '.ascii':
+                self.lib = compxs.readAscii(inputFile)
+            elif fileExtension == '':
+                self.lib = compxs.readBinary(inputFile)
+            elif fileExtension == '.h5':
+                self.lib = None
+            else:
+                raise ValueError("Unknown file extension")
+        elif self.inputType == 'micro':
+            if fileExtension == '.ascii':
+                self.lib = isotxs.readAscii(inputFile)
+            elif fileExtension == '':
+                self.lib = isotxs.readBinary(inputFile)
+            elif fileExtension == '.h5':
+                self.lib = None
+            else:
+                raise ValueError("Unknown file extension")
+        else:
+            raise ValueError("Unknown cross section type")
     def write(self):
-        if self.inputType == 'compxs':
-            self.writeCompxs()
+        '''
+        Write the mgxs.h5 file used by openmc. Returns the output filename as a string
+        If input file is in .h5 format, does nothing.
+        '''
+        # Compxs precomputed macroscopic cross sections
+        if type(self.lib) is CompxsLibrary:
+            return self.writeCompxs()
+        # Isotxs microscopic cross sections
+        if type(self.lib) is IsotxsLibrary:
+            return self.writeIsotxs()
+        # Openmc's hdf5 formatted cross sections
+        if self.lib == None:
+            return self.inputFile
     def writeCompxs(self):
         numGroups = self.lib.compxsMetadata["numGroups"]
         groups = openmc.mgxs.EnergyGroups(np.append(np.array([0.]), self.lib.neutronEnergyUpperBounds))
@@ -46,4 +76,8 @@ class MGXSWriter:
                     if interaction == 'chi':
                         region_xsdata.set_chi(np.reshape(data,(numGroups,)))
             mg_cross_sections_file.add_xsdatas([region_xsdata])
-        mg_cross_sections_file.export_to_hdf5()
+        mg_cross_sections_file.export_to_hdf5(filename=self.outputFilename)
+        return self.outputFilename
+
+    def writeIsotxs(self):
+        raise NotImplementedError()

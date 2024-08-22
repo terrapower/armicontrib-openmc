@@ -14,9 +14,9 @@
 
 import shutil
 import openmc
+import os
 
 from armi.physics.neutronics.globalFlux import globalFluxInterface
-
 from armi.settings import caseSettings
 from armi.physics import neutronics
 from armi.physics.neutronics import settings as gsettings
@@ -35,6 +35,8 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.label = label if label else "openmc"
         self.executablePath = None
         self.energyMode = None
+        self.mgxsFile = None
+        self.mgxsFormat = None
         self.nParticles = None
         self.nBatches = None
         self.nInactiveBatches = None
@@ -61,6 +63,8 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         globalFluxInterface.GlobalFluxOptions.fromUserSettings(self, cs)
         self.executablePath = shutil.which(cs[settings.CONF_OPENMC_PATH])
         self.energyMode = cs[settings.CONF_ENERGY_MODE]
+        self.mgxsFile = cs[settings.CONF_MGXS_FILE]
+        self.mgxsFormat = cs[settings.CONF_MGXS_FORMAT]
         self.nParticles = cs[settings.CONF_N_PARTICLES]
         self.nBatches = cs[settings.CONF_N_BATCHES]
         self.nInactiveBatches = cs[settings.CONF_N_INACTIVE]
@@ -102,6 +106,9 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
                 "plots.xml",
             ]
         )
+        if self.energyMode == "multigroup":
+            # Need cross section file
+            self.extraInputFiles.extend([os.path.splitext(self.mgxsFile)[0] + ".h5"])
         self.outputFile = "statepoint." + str(self.nBatches) + ".h5"
         if self.existingFixedSource:
             self.extraInputFiles.append((self.existingFixedSource, self.existingFixedSource))

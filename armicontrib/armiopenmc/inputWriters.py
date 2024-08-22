@@ -21,6 +21,7 @@ Components for writing OpenMC inputs from ARMI models.
 """
 import warnings
 import math
+import os
 
 import armi
 from armi import runLog
@@ -30,6 +31,8 @@ from armi.reactor import systemLayoutInput
 from armi.reactor.components import basicShapes, complexShapes
 from armi.reactor.converters.blockConverters import MultipleComponentMerger
 from armi.reactor.geometry import GeomType
+
+from . import mgxsWriter
 
 import openmc
 
@@ -128,7 +131,9 @@ class OpenMCWriter:
         plots = openmc.Plots([plot])
 
         if self.options.energyMode == "multigroup":
-            self.materials.cross_sections = "/home/aidan//armicases/c5g7multi/mgxs.h5"
+            extension = os.path.splitext(self.options.mgxsFile)[1]
+            formattedMgxsFile = mgxsWriter.MGXSWriter(self.options.mgxsFile, self.options.mgxsFormat).write()
+            self.materials.cross_sections = formattedMgxsFile
         self.materials.export_to_xml()
         plots.export_to_xml()
         geometry.export_to_xml()
@@ -142,7 +147,7 @@ class OpenMCWriter:
             settings.energy_mode = "multi-group"
         else:
             settings.energy_mode = "continuous-energy"
-        #settings.resonance_scattering = {"enable": True}
+            settings.resonance_scattering = {"enable": True}
         bbHeight = max([assembly.getHeight() for assembly in self.r.core])
 
         if self.r.core.geomType == GeomType.HEX:
@@ -724,12 +729,15 @@ class OpenMCWriter:
         if component.material.name == "Void":
             return None
         componentMaterial = openmc.Material(name=component.material.name)
-        if self.options.energyMode == "multigroup":
+        
+        if self.options.energyMode == "multigroup" and self.options.mgxsFormat == "macro":
             componentMaterial.set_density('macro', 1.)
-            componentMaterial.add_macroscopic(openmc.Macroscopic(component.name))
         else:    
             componentMaterial.set_density("g/cm3", component.density())
-
+        
+        if self.options.energyMode == "multigroup":
+            componentMaterial.add_macroscopic(openmc.Macroscopic(component.name))
+        else:
             componentNuclides = component.getNuclides()
             compNucDens = {}  # Component nuclide densities. Shortened for readability
             for n in componentNuclides:
