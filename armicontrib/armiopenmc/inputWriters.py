@@ -233,12 +233,13 @@ class OpenMCWriter:
         meshFluxTally.filters = [meshFilter, energyFilter]
         tallies.append(meshFluxTally)
 
-        '''
         powerTally = openmc.Tally(104, name="power")
-        powerTally.scores = ["heating-local"]
+        if self.options.energyMode == "multigroup":
+            powerTally.scores = ["fission"]
+        else:
+            powerTally.scores = ["heating-local"]
         powerTally.filters = [blockFilter]
         tallies.append(powerTally)
-        '''
         
         absorptionTally = openmc.Tally(105, name="absorption")
         absorptionTally.scores = ["absorption"]

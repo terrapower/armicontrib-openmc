@@ -56,6 +56,11 @@ class OpenMCReader:
         self._geometry: openmc.Geometry = None
         self._check()
 
+        if self.opts.energyMode == "multigroup":
+            self.heatingTallyName = "fission"
+        else:
+            self.heatingTallyName = "heating-local"
+
     def _check(self):
         if not os.path.exists(self.opts.outputFile):
             raise RuntimeError("No valid OpenMC output found. Check OpenMC stdout for errors.")
@@ -90,8 +95,10 @@ class OpenMCReader:
         Normalize to usable units with heating tally and known reactor power.
         """
         totalHeatingTally = (
-            sum(self._sp.get_tally(scores=["heating-local"]).mean) * 1.602e-19
+            sum(self._sp.get_tally(scores=[self.heatingTallyName]).mean) * 1.602e-19
         )  # [J/(sourceParticle)]
+        if self.heatingTallyName == "fission":
+            totalHeatingTally = totalHeatingTally * 200e6
         if self.r is None:
             raise ValueError(
                 "OpenMCReader.r must be set before normalization factor can be calculated."
@@ -118,7 +125,7 @@ class OpenMCReader:
 
     def _readPower(self):
         """Read power density"""
-        powerTally = self._sp.get_tally(scores=["heating-local"])
+        powerTally = self._sp.get_tally(name="power")
         blockFilter = powerTally.find_filter(openmc.CellFilter)
         reshapedPowerTally = powerTally.get_reshaped_data()
         cells = self._geometry.get_all_cells()
@@ -127,8 +134,11 @@ class OpenMCReader:
             cellNumber = blockFilter.bins[i]
             blockName = cells[cellNumber].name
             b = self.r.core.getBlockByName(blockName)
-
-            blockPower = reshapedPowerTally[i] * self.nf * 1.602e-19  # [W]
+            
+            if self.heatingTallyName == 'fission':
+                blockPower = reshapedPowerTally[i] * self.nf * 1.602e-19 * 200e6  # [W]
+            else:
+                blockPower = reshapedPowerTally[i] * self.nf * 1.602e-19  # [W]
 
             b.p.power = blockPower  # [W]
             b.p.pdens = blockPower / b.getVolume()  # [W/cm^3]
