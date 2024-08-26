@@ -132,7 +132,9 @@ class OpenMCWriter:
 
         if self.options.energyMode == "multigroup":
             extension = os.path.splitext(self.options.mgxsFile)[1]
-            formattedMgxsFile = mgxsWriter.MGXSWriter(self.options.mgxsFile, self.options.mgxsFormat).write()
+            formattedMgxsFile = mgxsWriter.MGXSWriter(
+                self.options.mgxsFile, self.options.mgxsFormat
+            ).write()
             self.materials.cross_sections = formattedMgxsFile
         self.materials.export_to_xml()
         plots.export_to_xml()
@@ -219,7 +221,7 @@ class OpenMCWriter:
 
         fissionTally = openmc.Tally(101, name="fission rate")
         fissionTally.scores = ["fission"]
-        #fissionTally.nuclides = ["U235", "U238", "total"]
+        # fissionTally.nuclides = ["U235", "U238", "total"]
         fissionTally.filters = [meshFilter]
         tallies.append(fissionTally)
 
@@ -240,7 +242,7 @@ class OpenMCWriter:
             powerTally.scores = ["heating-local"]
         powerTally.filters = [blockFilter]
         tallies.append(powerTally)
-        
+
         absorptionTally = openmc.Tally(105, name="absorption")
         absorptionTally.scores = ["absorption"]
         absorptionTally.filters = [blockFilter]
@@ -724,18 +726,17 @@ class OpenMCWriter:
             cell.temperature = component.getAverageTempInC() + 274
         return cell
 
-
     def _buildComponentMaterial(self, component):
         """Build OpenMC material for ARMI component"""
         if component.material.name == "Void":
             return None
         componentMaterial = openmc.Material(name=component.material.name)
-        
+
         if self.options.energyMode == "multigroup" and self.options.mgxsFormat == "macro":
-            componentMaterial.set_density('macro', 1.)
-        else:    
+            componentMaterial.set_density("macro", 1.0)
+        else:
             componentMaterial.set_density("g/cm3", component.density())
-        
+
         if self.options.energyMode == "multigroup":
             componentMaterial.add_macroscopic(openmc.Macroscopic(component.name))
         else:
@@ -744,7 +745,9 @@ class OpenMCWriter:
             for n in componentNuclides:
                 compNucDens[n] = component.getNumberDensity(n)
 
-            if any([isinstance(nb.byName[nuc], nb.NaturalNuclideBase) for nuc in compNucDens.keys()]):
+            if any(
+                [isinstance(nb.byName[nuc], nb.NaturalNuclideBase) for nuc in compNucDens.keys()]
+            ):
                 compNucDens = _expandNaturalNuclides(compNucDens)
 
             if any([isinstance(nb.byName[nuc], nb.LumpNuclideBase) for nuc in compNucDens.keys()]):
@@ -755,7 +758,9 @@ class OpenMCWriter:
             for nuclideName in compNucDens.keys():
                 nuclide = nb.byName[nuclideName]
                 if nuclide.a > 0:  # Skip dummy nuclides. Natural and Lumped should be taken care of
-                    nuclideGNDSName = openmc.data.gnds_name(Z=nuclide.z, A=nuclide.a, m=nuclide.state)
+                    nuclideGNDSName = openmc.data.gnds_name(
+                        Z=nuclide.z, A=nuclide.a, m=nuclide.state
+                    )
                     componentMaterial.add_nuclide(
                         nuclideGNDSName,
                         compNucDens[nuclideName] / totalComponentNuclideDensity,

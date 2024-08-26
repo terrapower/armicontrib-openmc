@@ -134,8 +134,8 @@ class OpenMCReader:
             cellNumber = blockFilter.bins[i]
             blockName = cells[cellNumber].name
             b = self.r.core.getBlockByName(blockName)
-            
-            if self.heatingTallyName == 'fission':
+
+            if self.heatingTallyName == "fission":
                 blockPower = reshapedPowerTally[i] * self.nf * 1.602e-19 * 200e6  # [W]
             else:
                 blockPower = reshapedPowerTally[i] * self.nf * 1.602e-19  # [W]

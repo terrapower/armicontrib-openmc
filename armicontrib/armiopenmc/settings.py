@@ -101,32 +101,32 @@ def defineSettings():
             default="continuous-energy",
             label="Energy mode",
             description="Whether to use continuous energy or multigroup cross sections",
-            options=["continuous-energy", "multigroup"]
+            options=["continuous-energy", "multigroup"],
         ),
         setting.Setting(
             CONF_MGXS_FILE,
             default="mgxs.h5",
             label="Multigroup cross section file path",
             description=(
-                    "Path to multigroup cross section file. Used only in multigroup energy mode. "
-                    "Currently supported types are openmc's hdf5 format and compxs ascii or binary "
-                    "(will write hdf5 file)."
-                ),
+                "Path to multigroup cross section file. Used only in multigroup energy mode. "
+                "Currently supported types are openmc's hdf5 format and compxs ascii or binary "
+                "(will write hdf5 file)."
+            ),
         ),
         setting.Setting(
             CONF_MGXS_FORMAT,
             default="macro",
             label="Multigroup cross section library format",
             description=(
-                    "Format of the multigroup cross sections. Used only in multigroup energy mode."
-                    "Options are:"
-                    "'macro': Precomputed macroscopic cross sections"
-                    " - input library must be in hdf5 or compxs ascii or binary format."
-                    "'micro': Microscopic cross sections"
-                    " - input library must be in hdf5 or isotxs ascii or binary format"
-                    ),
-            options=["macro", "micro"]
-                ),
+                "Format of the multigroup cross sections. Used only in multigroup energy mode."
+                "Options are:"
+                "'macro': Precomputed macroscopic cross sections"
+                " - input library must be in hdf5 or compxs ascii or binary format."
+                "'micro': Microscopic cross sections"
+                " - input library must be in hdf5 or isotxs ascii or binary format"
+            ),
+            options=["macro", "micro"],
+        ),
         setting.Setting(
             CONF_N_BATCHES,
             default=100,
