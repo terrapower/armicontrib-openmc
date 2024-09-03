@@ -121,11 +121,13 @@ class RunC5G7(EntryPoint):
             64.26,
             max([assembly.getHeight() for assembly in o.r.core]),
         ]
-        mesh.dimension = [1500, 1500, 1]
+        mesh.dimension = [1, 1500, 1500]
         meshFilter = openmc.MeshFilter(mesh=mesh)
+        groups = parseEnergyGroupStructure(energyGroups.getGroupStructure(opts.groupStructure))
+        energyFilter = openmc.EnergyFilter(groups, filter_id=35)
         meshFluxTally = openmc.Tally(1, name="custom tally")
-        meshFluxTally.scores = ["absorption"]
-        meshFluxTally.filters = [meshFilter]
+        meshFluxTally.scores = ["flux"]
+        meshFluxTally.filters = [meshFilter, energyFilter]
         tallies.append(meshFluxTally)
 
         opts.addTallies(tallies)

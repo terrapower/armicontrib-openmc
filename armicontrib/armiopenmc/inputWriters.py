@@ -175,6 +175,8 @@ class OpenMCWriter:
         settings.source = openmc.IndependentSource(
             space=sourceBox, constraints={"fissionable": True}
         )
+        if self.options.photonTransportEnabled:
+            settings.photon_transport = True
         settings.batches = self.options.nBatches
         settings.inactive = self.options.nInactiveBatches
         settings.particles = self.options.nParticles
@@ -218,34 +220,46 @@ class OpenMCWriter:
         )
         energyFilter = openmc.EnergyFilter(energyGroupStructure, filter_id=102)
         blockFilter = openmc.CellFilter(bins=self.blockFilterCells, filter_id=103)
+        if self.options.photonTransportEnabled:
+            particleFilter = openmc.ParticleFilter(bins=['neutron', 'photon', 'electron', 'positron'], filter_id=104)
 
         fissionTally = openmc.Tally(101, name="fission rate")
         fissionTally.scores = ["fission"]
-        # fissionTally.nuclides = ["U235", "U238", "total"]
         fissionTally.filters = [meshFilter]
+        if self.options.photonTransportEnabled:
+            fissionTally.filters.append(particleFilter)
         tallies.append(fissionTally)
 
         blockFluxTally = openmc.Tally(102, name="block filter multigroup flux")
         blockFluxTally.scores = ["flux"]
         blockFluxTally.filters = [blockFilter, energyFilter]
+        if self.options.photonTransportEnabled:
+            blockFluxTally.filters.append(particleFilter)
         tallies.append(blockFluxTally)
 
         meshFluxTally = openmc.Tally(103, name="mesh filter multigroup flux")
         meshFluxTally.scores = ["flux"]
         meshFluxTally.filters = [meshFilter, energyFilter]
+        if self.options.photonTransportEnabled:
+            meshFluxTally.filters.append(particleFilter)
         tallies.append(meshFluxTally)
 
         powerTally = openmc.Tally(104, name="power")
+        powerTally.filters = [blockFilter]
         if self.options.energyMode == "multigroup":
             powerTally.scores = ["fission"]
+        elif self.options.photonTransportEnabled:
+            powerTally.scores = ["heating"]
+            powerTally.filters.append(particleFilter)
         else:
             powerTally.scores = ["heating-local"]
-        powerTally.filters = [blockFilter]
         tallies.append(powerTally)
 
         absorptionTally = openmc.Tally(105, name="absorption")
         absorptionTally.scores = ["absorption"]
         absorptionTally.filters = [blockFilter]
+        if self.options.photonTransportEnabled:
+            absorptionTally.filters.append(particleFilter)
         tallies.append(absorptionTally)
 
         tallies.export_to_xml()

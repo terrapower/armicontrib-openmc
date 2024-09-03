@@ -38,6 +38,7 @@ CONF_NEUTRONICS_OUTPUTS_TO_SAVE = "neutronicsOutputsToSave"
 CONF_OPENMC_DB = "writeOpenMCDb"
 CONF_OPENMC_PATH = "OpenMCExePath"
 CONF_ENERGY_MODE = "energyMode"
+CONF_PHOTON_TRANSPORT_ENABLED = "photonTransportEnabled"
 CONF_MGXS_FILE = "xsFile"
 CONF_MGXS_FORMAT = "mgxsFormat"
 CONF_N_PARTICLES = "nParticles"
@@ -102,6 +103,15 @@ def defineSettings():
             label="Energy mode",
             description="Whether to use continuous energy or multigroup cross sections",
             options=["continuous-energy", "multigroup"],
+        ),
+        setting.Setting(
+            CONF_PHOTON_TRANSPORT_ENABLED,
+            default=False,
+            label="Coupled neutron-photon transport enabled",
+            description=(
+                "Enable coupled neutron-photon transport. Requires photon transport cross"
+                "sections in cross section library. Incompatible with multigroup energy mode."
+            ),
         ),
         setting.Setting(
             CONF_MGXS_FILE,

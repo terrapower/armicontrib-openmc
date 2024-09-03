@@ -35,6 +35,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         self.label = label if label else "openmc"
         self.executablePath = None
         self.energyMode = None
+        self.photonTransportEnabled = None
         self.mgxsFile = None
         self.mgxsFormat = None
         self.nParticles = None
@@ -63,6 +64,7 @@ class OpenMCOptions(globalFluxInterface.GlobalFluxOptions):
         globalFluxInterface.GlobalFluxOptions.fromUserSettings(self, cs)
         self.executablePath = shutil.which(cs[settings.CONF_OPENMC_PATH])
         self.energyMode = cs[settings.CONF_ENERGY_MODE]
+        self.photonTransportEnabled = cs[settings.CONF_PHOTON_TRANSPORT_ENABLED]
         self.mgxsFile = cs[settings.CONF_MGXS_FILE]
         self.mgxsFormat = cs[settings.CONF_MGXS_FORMAT]
         self.nParticles = cs[settings.CONF_N_PARTICLES]

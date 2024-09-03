@@ -58,6 +58,8 @@ class OpenMCReader:
 
         if self.opts.energyMode == "multigroup":
             self.heatingTallyName = "fission"
+        elif self.opts.photonTransportEnabled:
+            self.heatingTallyName = "heating"
         else:
             self.heatingTallyName = "heating-local"
 
