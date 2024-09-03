@@ -221,7 +221,7 @@ class OpenMCWriter:
         energyFilter = openmc.EnergyFilter(energyGroupStructure, filter_id=102)
         blockFilter = openmc.CellFilter(bins=self.blockFilterCells, filter_id=103)
         if self.options.photonTransportEnabled:
-            particleFilter = openmc.ParticleFilter(bins=['neutron', 'photon', 'electron', 'positron'], filter_id=104)
+            particleFilter = openmc.ParticleFilter(bins=["neutron", "photon"], filter_id=104)
 
         fissionTally = openmc.Tally(101, name="fission rate")
         fissionTally.scores = ["fission"]
