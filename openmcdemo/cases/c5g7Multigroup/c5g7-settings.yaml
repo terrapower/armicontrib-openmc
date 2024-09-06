@@ -1,0 +1,30 @@
+settings:
+  availabilityFactor: 0.9
+  # fakeBad: 123456
+  power: 1000000000.0
+  cycleLength: 411.11
+  loadingFile: c5g7-blueprints.yaml
+  nCycles: 10
+  burnSteps: 2
+  buGroups:
+    - 100
+  comment: C5G7 LWR Benchmark inputs
+  genXS: Neutron
+  numProcessors: 1
+  genReports: false
+  versions:
+    armi: uncontrolled
+  verbosity: info
+  OpenMCExePath: openmc
+  energyMode: multigroup
+  xsFile: C5G7_COMPXS.h5
+  openmcVerbosity: 7
+  nParticles: 10000
+  nBatches: 100
+  nInactiveBatches: 10
+  groupStructure: "ANL33"
+  tallyMeshDimension: [100,100,100]
+  entropyMeshDimension: [8,8,8]
+  nOMPThreads: 8
+  nMPIProcesses: 1
+  verticalSymmetry: True

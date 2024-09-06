@@ -1,0 +1,296 @@
+# Simple description of the C5G7 benchmark problem
+# General description from: https://www.oecd-nea.org/upload/docs/application/pdf/2019-12/nsc-doc2003-16.pdf
+# Composition/dimensions description from: https://www.oecd-nea.org/upload/docs/application/pdf/2020-01/nsc-doc96-02-rev2.pdf
+
+# This case is adapted from the ARMI C5G7 tutorial to use the homogenized pin geometry and the supllied macroscopic cross sections of the "official" benchmark problem in the OpenMC plugin. Isotopics here are updated to reflect homogenized pin geometry, but the isotopics are superceded by the supllied macroscopic cross sections in C5G7_COMPXS.h5. Running the case in continuous energy cross section mode will use these isotopics.
+
+# start-custom-isotopics
+custom isotopics:
+    mox low: # 4.3%
+        input format: number densities
+        U235: 2.8753e-05
+        U238: 0.012709
+        PU238: 8.626e-06
+        PU239: 0.00033354
+        PU240: 0.00013802
+        PU241: 5.6357e-05
+        PU242: 3.1054e-05
+        AM241: 7.4759e-06
+        O: 0.026626
+        ZR: 0.007506
+        AL27: 0.0116
+    mox medium: # 7.0%
+        input format: number densities
+        U235: 2.8753e-05
+        U238: 0.012709
+        PU238: 1.3802e-05
+        PU239: 0.00053481
+        PU240: 0.00022428
+        PU241: 8.7411e-05
+        PU242: 4.8306e-05
+        AM241: 1.1501e-05
+        O: 0.026626
+        ZR: 0.007506
+        AL27: 0.0116
+    mox high: # 8.7%
+        input format: number densities
+        U235: 2.8753e-05
+        U238: 0.012709
+        PU238: 1.7252e-05
+        PU239: 0.00066708
+        PU240: 0.00028178
+        PU241: 0.00010926
+        PU242: 6.0382e-05
+        AM241: 1.4377e-05
+        O: 0.026626
+        ZR: 0.007506
+        AL27: 0.0116
+    UO2:
+        input format: number densities
+        U235: 0.00049744
+        U238: 0.012795
+        O: 0.02658
+        ZR: 0.007506
+        AL27: 0.0116
+    moderator:
+        input format: number densities
+        H: 6.70e-2
+        O: 3.35E-2
+        B: 2.78E-5
+    guide tube:
+        input format: number densities
+        AL27: 0.036214
+        H: 0.026561
+        O: 0.013281
+        B: 1.1021e-05
+    fission chamber:
+        input format: number densities
+        AL27: 0.036214
+        H: 0.026561
+        O: 0.013281
+        B: 1.1021e-05
+        U235: 3.9643e-09
+# end-custom-isotopics
+blocks:
+    uo2: &block_uo2
+        # NEA/NSC/DOC(96)2 Table 1 - Cell geometries
+        grid name: UO2 grid
+        fuel:
+            shape: Circle
+            material: UO2
+            isotopics: UO2
+            Tinput: 25.0
+            Thot: 25.0
+            od: 1.0800
+            latticeIDs: [U]
+        moderator: &moderator
+            shape: DerivedShape
+            material: SaturatedWater
+            isotopics: moderator
+            Tinput: 450.0
+            Thot: 450.0
+        guide tube: &guide_tube
+            shape: Circle
+            material: Custom
+            isotopics: guide tube
+            Tinput: 25.0
+            Thot: 25.0
+            od: 1.0800
+            latticeIDs: [GT]
+        fission chamber: &fission_chamber
+            shape: Circle
+            material: Custom
+            isotopics: fission chamber
+            Tinput: 25.0
+            Thot: 25.0
+            od: 1.0800
+            latticeIDs: [FC]
+        pitch: &pitch
+        # dummy component for assembly sizing
+            shape: Square
+            material: Void
+            Tinput: 25.0
+            Thot: 25.0
+            widthInner: 21.42
+            widthOuter: 21.42
+            mult: 1.0
+            latticeIDs: [FC] 
+            # latticeIDs is needed to ensure that the center of the bounding 
+            # Component shares the same center/origin as the rest of the 
+            # components in the block. See #332."
+# end-block-uo2
+    mox: &block_mox
+        grid name: MOX grid
+        mox low fuel:
+            shape: Circle
+            material: UO2
+            isotopics: mox low
+            Tinput: 25.0
+            Thot: 25.0
+            od: 1.08
+            latticeIDs: [ML]
+        mox medium fuel:
+            shape: Circle
+            material: UO2
+            isotopics: mox medium
+            Tinput: 25.0
+            Thot: 25.0
+            od: 1.08
+            latticeIDs: [MM]
+        mox high fuel:
+            shape: Circle
+            material: UO2
+            isotopics: mox high
+            Tinput: 25.0
+            Thot: 25.0
+            od: 1.08
+            latticeIDs: [MH]
+        moderator: *moderator
+        guide tube: *guide_tube
+        fission chamber: *fission_chamber
+        pitch: *pitch
+# end-block-mox
+    moderator: &block_mod
+        moderator:
+            shape: Square
+            material: SaturatedWater
+            isotopics: moderator
+            Tinput: 25.0
+            Thot: 25.0
+            widthOuter: 21.42
+            mult: 1.0
+# end-block-mod
+assemblies:
+    heights: &heights
+        - 64.26
+        - 64.26
+        - 64.26
+        - 21.42
+    axial mesh points: &mesh
+        - 3
+        - 3
+        - 3
+        - 2
+
+    UO2:
+        flags: fuel
+        specifier: UO2
+        blocks:
+            - *block_uo2
+            - *block_uo2
+            - *block_uo2
+            - *block_mod
+        height: *heights
+        axial mesh points: *mesh
+        xs types: [A,A,A,A]
+    mox:
+        flags: fuel
+        specifier: MOX
+        blocks:
+            - *block_mox
+            - *block_mox
+            - *block_mox
+            - *block_mod
+        height: *heights
+        axial mesh points: *mesh
+        xs types: [A,A,A,A]
+    mod:
+        specifier: MOD
+        blocks:
+            - *block_mod
+            - *block_mod
+            - *block_mod
+            - *block_mod
+        height: *heights
+        axial mesh points: *mesh
+        xs types: [A,A,A,A]
+# end-assemblies
+systems:
+    core:
+      grid name: core
+
+      origin:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+# end-systems
+grids:
+    core:
+        symmetry: quarter reflective
+        geom: cartesian
+        lattice pitch:
+            x: 21.42
+            y: 21.42
+        lattice map: |
+         MOD MOD MOD
+         MOX UO2 MOD
+         UO2 MOX MOD
+# end-grid-core
+    UO2 grid:
+        symmetry: full
+        geom: cartesian
+        lattice pitch:
+            x: 1.26
+            y: 1.26
+        lattice map: |
+            U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U
+            U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U
+            U  U  U  U  U  GT U  U  GT U  U  GT U  U  U  U  U
+            U  U  U  GT U  U  U  U  U  U  U  U  U  GT U  U  U
+            U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U
+            U  U  GT U  U  GT U  U  GT U  U  GT U  U  GT U  U
+            U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U
+            U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U
+            U  U  GT U  U  GT U  U  FC U  U  GT U  U  GT U  U
+            U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U
+            U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U
+            U  U  GT U  U  GT U  U  GT U  U  GT U  U  GT U  U
+            U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U
+            U  U  U  GT U  U  U  U  U  U  U  U  U  GT U  U  U
+            U  U  U  U  U  GT U  U  GT U  U  GT U  U  U  U  U
+            U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U
+            U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U  U
+# end-grid-UO2
+    MOX grid:
+        symmetry: full
+        geom: cartesian
+        lattice pitch:
+            x: 1.26
+            y: 1.26
+        lattice map: |
+            ML ML ML ML ML ML ML ML ML ML ML ML ML ML ML ML ML
+            ML MM MM MM MM MM MM MM MM MM MM MM MM MM MM MM ML
+            ML MM MM MM MM GT MM MM GT MM MM GT MM MM MM MM ML
+            ML MM MM GT MM MH MH MH MH MH MH MH MM GT MM MM ML
+            ML MM MM MM MH MH MH MH MH MH MH MH MH MM MM MM ML
+            ML MM GT MH MH GT MH MH GT MH MH GT MH MH GT MM ML
+            ML MM MM MH MH MH MH MH MH MH MH MH MH MH MM MM ML
+            ML MM MM MH MH MH MH MH MH MH MH MH MH MH MM MM ML
+            ML MM GT MH MH GT MH MH FC MH MH GT MH MH GT MM ML
+            ML MM MM MH MH MH MH MH MH MH MH MH MH MH MM MM ML
+            ML MM MM MH MH MH MH MH MH MH MH MH MH MH MM MM ML
+            ML MM GT MH MH GT MH MH GT MH MH GT MH MH GT MM ML
+            ML MM MM MM MH MH MH MH MH MH MH MH MH MM MM MM ML
+            ML MM MM GT MM MH MH MH MH MH MH MH MM GT MM MM ML
+            ML MM MM MM MM GT MM MM GT MM MM GT MM MM MM MM ML
+            ML MM MM MM MM MM MM MM MM MM MM MM MM MM MM MM ML
+            ML ML ML ML ML ML ML ML ML ML ML ML ML ML ML ML ML
+# end-grid-MOX
+nuclide flags:
+    H: {burn: false, xs: true}
+    O: 
+        burn: false
+        xs: true
+        expandTo: ["O16", "O17"] # O18 is not in many nuclear data sets.
+    B: {burn: false, xs: true}
+    AL: {burn: false, xs: true}
+    ZR: {burn: false, xs: true}
+    U235: {burn: false, xs: true}
+    U238: {burn: false, xs: true}
+    PU238: {burn: false, xs: true}
+    PU239: {burn: false, xs: true}
+    PU240: {burn: false, xs: true}
+    PU241: {burn: false, xs: true}
+    PU242: {burn: false, xs: true}
+    AM241: {burn: false, xs: true}
+# end-nucflags
