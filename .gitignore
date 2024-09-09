@@ -33,6 +33,7 @@ wheelhouse
 *.avi
 *.diff
 *.h5
+!C5G7_COMPXS.h5
 *.html
 *.mp4
 *.png
