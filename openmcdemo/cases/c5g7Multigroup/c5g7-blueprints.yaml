@@ -2,7 +2,11 @@
 # General description from: https://www.oecd-nea.org/upload/docs/application/pdf/2019-12/nsc-doc2003-16.pdf
 # Composition/dimensions description from: https://www.oecd-nea.org/upload/docs/application/pdf/2020-01/nsc-doc96-02-rev2.pdf
 
-# This case is adapted from the ARMI C5G7 tutorial to use the homogenized pin geometry and the supllied macroscopic cross sections of the "official" benchmark problem in the OpenMC plugin. Isotopics here are updated to reflect homogenized pin geometry, but the isotopics are superceded by the supllied macroscopic cross sections in C5G7_COMPXS.h5. Running the case in continuous energy cross section mode will use these isotopics.
+# This case is adapted from the ARMI C5G7 tutorial to use the homogenized pin geometry and the supplied
+# macroscopic cross sections of the "official" benchmark problem in the OpenMC plugin. Isotopics here
+# are updated to reflect homogenized pin geometry, but the isotopics are superceded by the supplied
+# macroscopic cross sections in C5G7_COMPXS.h5. Running the case in continuous energy cross section
+# mode will use these isotopics.
 
 # start-custom-isotopics
 custom isotopics:
